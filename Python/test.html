@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>复杂地形下耕整地机具深度自适应协同控制技术</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: #0f172a;
+            overflow: hidden;
+        }
+        
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #0c4a3e 0%, #065f46 50%, #047857 100%);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 背景装饰 */
+        .bg-pattern {
+            position: absolute;
+            inset: 0;
+            opacity: 0.1;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%),
+                linear-gradient(90deg, transparent 95%, rgba(255,255,255,0.03) 95%);
+            background-size: 100% 100%, 100% 100%, 40px 40px;
+        }
+        
+        .field-texture {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background: linear-gradient(to top, rgba(6,78,59,0.4) 0%, transparent 100%);
+            clip-path: polygon(0 100%, 100% 100%, 100% 60%, 85% 50%, 70% 65%, 55% 45%, 40% 55%, 25% 40%, 10% 50%, 0 40%);
+        }
+        
+        /* 标题区域 */
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 24px 40px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%);
+            z-index: 10;
+        }
+        
+        .title-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 12px;
+        }
+        
+        .title-badge span {
+            color: #a7f3d0;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+        }
+        
+        .main-title {
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.3;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-width: 900px;
+        }
+        
+        .highlight {
+            color: #fbbf24;
+            position: relative;
+        }
+        
+        .highlight::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            border-radius: 2px;
+        }
+        
+        /* 内容网格 */
+        .content-grid {
+            position: absolute;
+            top: 140px;
+            left: 40px;
+            right: 40px;
+            bottom: 80px;
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: 1fr 180px;
+            gap: 20px;
+            z-index: 5;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #34d399, #10b981);
+            opacity: 0.6;
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #a7f3d0;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .card-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #34d399, #059669);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        /* 场景痛点卡片 */
+        .pain-points {
+            grid-row: span 2;
+        }
+        
+        .pain-item {
+            background: rgba(239,68,68,0.1);
+            border-left: 3px solid #ef4444;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border-radius: 0 8px 8px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .pain-item:hover {
+            background: rgba(239,68,68,0.15);
+            transform: translateX(4px);
+        }
+        
+        .pain-label {
+            color: #fca5a5;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .pain-value {
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        
+        .pain-conclusion {
+            margin-top: 16px;
+            padding: 14px;
+            background: rgba(239,68,68,0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        
+        .pain-conclusion-text {
+            color: #fecaca;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .pain-conclusion-highlight {
+            color: #fbbf24;
+            font-size: 18px;
+            font-weight: 700;
+            display: block;
+            margin-top: 6px;
+        }
+        
+        /* 技术架构图 */
+        .tech-diagram {
+            grid-column: 2;
+            grid-row: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .diagram-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .control-flow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .flow-box {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 12px 10px;
+            text-align: center;
+            min-width: 85px;
+            position: relative;
+        }
+        
+        .flow-box.input {
+            background: rgba(59,130,246,0.15);
+            border-color: rgba(59,130,246,0.4);
+        }
+        
+        .flow-box.process {
+            background: rgba(139,92,246,0.15);
+            border-color: rgba(139,92,246,0.4);
+            flex: 1;
+            max-width: 200px;
+        }
+        
+        .flow-box.output {
+            background: rgba(16,185,129,0.15);
+            border-color: rgba(16,185,129,0.4);
+        }
+        
+        .flow-box-title {
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        
+        .flow-box-detail {
+            color: rgba(255,255,255,0.7);
+            font-size: 10px;
+            line-height: 1.3;
+        }
+        
+        .flow-arrow {
+            color: #34d399;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .innovation-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: center;
+        }
+        
+        .innovation-tag {
+            background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.1));
+            border: 1px solid rgba(251,191,36,0.4);
+            color: #fbbf24;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .innovation-tag::before {
+            content: '★';
+            color: #fbbf24;
+            font-size: 10px;
+        }
+        
+        /* 试验设计卡片 */
+        .experiment-design {
+            grid-column: 2;
+            grid-row: 2;
+        }
+        
+        .exp-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .exp-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .exp-item-label {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+        
+        .exp-item-value {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .exp-highlight {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 12px;
+            background: rgba(251,191,36,0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(251,191,36,0.3);
+        }
+        
+        .exp-number {
+            text-align: center;
+        }
+        
+        .exp-number-value {
+            color: #fbbf24;
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1;
+        }
+        
+        .exp-number-label {
+            color: #fcd34d;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+        
+        .exp-vs {
+            color: rgba(255,255,255,0.4);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        /* 效果对比卡片 */
+        .results-card {
+            grid-row: span 2;
+        }
+        
+        .chart-container {
+            height: 200px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        
+        .result-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .metric-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border-left: 3px solid #10b981;
+        }
+        
+        .metric-item.warning {
+            border-left-color: #f59e0b;
+        }
+        
+        .metric-label {
+            color: rgba(255,255,255,0.8);
+            font-size: 12px;
+        }
+        
+        .metric-value {
+            color: #34d399;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .metric-value.warning {
+            color: #fbbf24;
+        }
+        
+        .metric-comparison {
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            margin-left: 8px;
+        }
+        
+        /* 底部信息栏 */
+        .footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 40px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+        }
+        
+        .footer-item strong {
+            color: #a7f3d0;
+            font-weight: 600;
+        }
+        
+        .footer-badge {
+            background: rgba(16,185,129,0.2);
+            color: #34d399;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid rgba(16,185,129,0.3);
+        }
+        
+        /* 动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-in {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+        
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+        
+        /* 响应式 */
+        @media (max-width: 1300px) {
+            .slide-container {
+                transform: scale(0.9);
+                transform-origin: top center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <!-- 背景 -->
+        <div class="bg-pattern"></div>
+        <div class="field-texture"></div>
+        
+        <!-- 标题区 -->
+        <div class="header">
+            <div class="title-badge animate-in">
+                <span>🌾 智能农机装备技术</span>
+            </div>
+            <h1 class="main-title animate-in delay-1">
+                复杂地形下耕整地机具<span class="highlight">深度自适应协同控制</span>技术
+            </h1>
+        </div>
+        
+        <!-- 内容网格 -->
+        <div class="content-grid">
+            <!-- 场景痛点 -->
+            <div class="card pain-points animate-in delay-2">
+                <div class="card-title">
+                    <div class="card-icon">⚠</div>
+                    <span>典型作业场景挑战</span>
+                </div>
+                
+                <div class="pain-item">
+                    <div class="pain-label">
+                        <span>📐</span> 地形条件
+                    </div>
+                    <div class="pain-value">坡度 0-15°，起伏频率高，传统PID响应滞后</div>
+                </div>
+                
+                <div class="pain-item">
+                    <div class="pain-label">
+                        <span>🌱</span> 土壤特性
+                    </div>
+                    <div class="pain-value">比阻 200-800kPa 突变，执行器频繁饱和</div>
+                </div>
+                
+                <div class="pain-item">
+                    <div class="pain-label">
+                        <span>⚡</span> 作业速度
+                    </div>
+                    <div class="pain-value">3-7km/h，波动 ±20%，深度控制难度大</div>
+                </div>
+                
+                <div class="pain-item">
+                    <div class="pain-label">
+                        <span>🔗</span> 机组负荷
+                    </div>
+                    <div class="pain-value">深松-旋耕-起垄联动，牵引力波动 ±30%</div>
+                </div>
+                
+                <div class="pain-conclusion">
+                    <div class="pain-conclusion-text">
+                        传统PID控制深度波动
+                        <span class="pain-conclusion-highlight">超 ±3cm</span>
+                        无法满足行业标准 ±2cm
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 技术架构 -->
+            <div class="card tech-diagram animate-in delay-2">
+                <div class="card-title">
+                    <div class="card-icon">🔧</div>
+                    <span>抗饱和微分协同PID控制架构</span>
+                </div>
+                
+                <div class="diagram-container">
+                    <div class="control-flow">
+                        <div class="flow-box input">
+                            <div class="flow-box-title">多源感知</div>
+                            <div class="flow-box-detail">地形雷达<br>IMU姿态<br>牵引负荷</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-box process">
+                            <div class="flow-box-title">三级抗扰动控制核心</div>
+                            <div class="flow-box-detail" style="font-size: 9px;">
+                                ①前馈微分补偿（预测地形变化）<br>
+                                ②积分分离抗饱和（饱和冻结/平滑恢复）<br>
+                                ③多机具负荷耦合（动态分配抑制波动）
+                            </div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-box output">
+                            <div class="flow-box-title">执行输出</div>
+                            <div class="flow-box-detail">液压执行器<br>机具深度调节</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="innovation-tags">
+                    <div class="innovation-tag">积分分离抗饱和</div>
+                    <div class="innovation-tag">前馈微分补偿</div>
+                    <div class="innovation-tag">多机协同耦合</div>
+                </div>
+            </div>
+            
+            <!-- 试验设计 -->
+            <div class="card experiment-design animate-in delay-3">
+                <div class="card-title">
+                    <div class="card-icon">🧪</div>
+                    <span>全因子对比验证试验设计</span>
+                </div>
+                
+                <div class="exp-grid">
+                    <div class="exp-item">
+                        <div class="exp-item-label">土壤类型</div>
+                        <div class="exp-item-value">砂壤/黏土/壤土<br>（3种）</div>
+                    </div>
+                    <div class="exp-item">
+                        <div class="exp-item-label">作业速度</div>
+                        <div class="exp-item-value">3/5/7 km/h<br>（3档）</div>
+                    </div>
+                    <div class="exp-item">
+                        <div class="exp-item-label">地形坡度</div>
+                        <div class="exp-item-value">0°/6°/12°<br>（3级）</div>
+                    </div>
+                    <div class="exp-item">
+                        <div class="exp-item-label">机具组合</div>
+                        <div class="exp-item-value">深松+旋耕<br>+起垄（3联）</div>
+                    </div>
+                </div>
+                
+                <div class="exp-highlight">
+                    <div class="exp-number">
+                        <div class="exp-number-value">810</div>
+                        <div class="exp-number-label">总样本组数</div>
+                    </div>
+                    <div class="exp-vs">VS</div>
+                    <div style="text-align: center;">
+                        <div style="color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600;">传统增量式PID</div>
+                        <div style="color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 4px;">对照组</div>
+                    </div>
+                    <div class="exp-vs">+</div>
+                    <div style="text-align: center;">
+                        <div style="color: #fbbf24; font-size: 13px; font-weight: 600;">行业标准</div>
+                        <div style="color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 4px;">基准线 ±2cm</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 效果对比 -->
+            <div class="card results-card animate-in delay-4">
+                <div class="card-title">
+                    <div class="card-icon">📊</div>
+                    <span>作业深度稳定性对比</span>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+                
+                <div class="result-metrics">
+                    <div class="metric-item">
+                        <span class="metric-label">深度稳定系数</span>
+                        <span>
+                            <span class="metric-value">85%</span>
+                            <span class="metric-comparison">vs 传统62% ↑23%</span>
+                        </span>
+                    </div>
+                    <div class="metric-item warning">
+                        <span class="metric-label">深度波动范围</span>
+                        <span>
+                            <span class="metric-value warning">±1.2cm</span>
+                            <span class="metric-comparison">优于标准±2cm</span>
+                        </span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">执行器饱和次数</span>
+                        <span>
+                            <span class="metric-value">降低76%</span>
+                            <span class="metric-comparison">vs 传统PID</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部信息 -->
+        <div class="footer">
+            <div class="footer-left">
+                <div class="footer-item">
+                    <span>📍</span>
+                    <span>试验地点：<strong>河北/黑龙江/山东</strong> 三地农场</span>
+                </div>
+                <div class="footer-item">
+                    <span>📅</span>
+                    <span>试验周期：<strong>2024.3-2024.5</strong></span>
+                </div>
+                <div class="footer-item">
+                    <span>📋</span>
+                    <span>鉴定单位：<strong>农业农村部农业机械试验鉴定总站</strong></span>
+                </div>
+            </div>
+            <div class="footer-badge">
+                数据来源：鉴定报告 No.2024-XXX
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 图表初始化
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['本技术', '传统PID', '行业标准'],
+                datasets: [{
+                    label: '深度稳定系数(%)',
+                    data: [85, 62, 75],
+                    backgroundColor: [
+                        'rgba(52, 211, 153, 0.8)',
+                        'rgba(148, 163, 184, 0.6)',
+                        'rgba(251, 191, 36, 0.3)'
+                    ],
+                    borderColor: [
+                        'rgba(52, 211, 153, 1)',
+                        'rgba(148, 163, 184, 0.8)',
+                        'rgba(251, 191, 36, 0.6)'
+                    ],
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    barThickness: 50
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        titleFont: { size: 13 },
+                        bodyFont: { size: 12 },
+                        callbacks: {
+                            label: function(context) {
+                                return '稳定系数: ' + context.parsed.y + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(255,255,255,0.1)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: 'rgba(255,255,255,0.6)',
+                            font: { size: 11 },
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: 'rgba(255,255,255,0.9)',
+                            font: { size: 12, weight: '600' }
+                        }
+                    }
+                },
+                animation: {
+                    duration: 1500,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+        
+        // 添加数值标签在柱状图顶部
+        Chart.register({
+            id: 'customLabels',
+            afterDatasetsDraw: function(chart) {
+                const ctx = chart.ctx;
+                chart.data.datasets.forEach((dataset, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach((bar, index) => {
+                        const data = dataset.data[index];
+                        ctx.fillStyle = 'white';
+                        ctx.font = 'bold 14px "Noto Sans SC"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(data + '%', bar.x, bar.y - 10);
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
