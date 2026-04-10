@@ -1,0 +1,39 @@
+{
+    "devices": {
+        "implement": {
+            "name": "测试设备1",
+            "port": "/dev/ttyUSB0",
+            "baudrate": 9600,
+            "address": 80
+        },
+        "vehicle": {
+            "name": "测试设备2",
+            "port": "/dev/ttyUSB2",
+            "baudrate": 9600,
+            "address": 80
+        },
+        "pda": {
+            "port": "/dev/ttyUSB1",
+            "baudrate": 9600
+        }
+    },
+    "tool": {
+        "type": "subsoiler",
+        "params": {
+            "L1": 500.0,
+            "Lt": 300.0,
+            "Ht": 150.0,
+            "install_angle": 0.0,
+            "calibration": 1.0,
+            "zero_offset": 0.0
+        }
+    },
+  
+    "monitor": {
+        "window_seconds": 10.0,
+        "min_samples": 3,
+        "send_interval": 5,
+        "sleep_interval": 0.25,
+        "log_enabled": true
+    }
+}
