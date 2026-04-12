@@ -1,14 +1,14 @@
 {
     "devices": {
         "implement": {
-            "name": "机具",
-            "port": "COM7",
+            "name": "测试设备1",
+            "port": "/dev/ttyUSB0",
             "baudrate": 9600,
             "address": 80
         },
         "vehicle": {
-            "name": "机身",
-            "port": "COM9",
+            "name": "测试设备2",
+            "port": "/dev/ttyUSB2",
             "baudrate": 9600,
             "address": 80
         },
@@ -28,6 +28,7 @@
             "zero_offset": 0.0
         }
     },
+  
     "monitor": {
         "window_seconds": 10.0,
         "min_samples": 3,

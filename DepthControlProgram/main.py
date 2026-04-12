@@ -860,6 +860,34 @@ def compute_stability(depth_history, min_samples=3):
     return int(stability)
 
 
+def init_logging(log_enabled):
+    """
+    初始化日志文件。
+    返回: (log_file, log_filename) 或 (None, None) 当禁用或失败时。
+    """
+    if not log_enabled:
+        return None, None
+    log_filename = f"data-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+    try:
+        log_file = open(log_filename, "a", encoding="utf-8")
+        if os.path.getsize(log_filename) == 0:
+            log_file.write("Beta_车身(deg) | Alpha_机具(deg) | Depth(mm) | Timestamp\n")
+        print(f"日志文件 '{log_filename}' 已创建。")
+        return log_file, log_filename
+    except Exception as e:
+        print(f"创建日志文件失败: {e}")
+        return None, None
+
+
+def write_log_entry(log_file, beta, alpha, depth_mm):
+    """写入一条日志记录到已打开的日志文件对象中。"""
+    if log_file is None:
+        return
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    log_file.write(f"{beta:.3f} | {alpha:.3f} | {depth_mm:.2f} | {timestamp}\n")
+    log_file.flush()
+
+
 def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_names):
     """
     tool_config: 包含 "type" 和 "params" 的字典
@@ -897,20 +925,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
     initial_status_sent = False
 
     # 日志文件（保持句柄）
-    log_file = None
-    if log_enabled:
-        log_filename = f"data-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
-        try:
-            log_file = open(log_filename, "a", encoding="utf-8")
-            # 如果文件为空，写入表头
-            if os.path.getsize(log_filename) == 0:
-                log_file.write(
-                    "Beta_车身(deg) | Alpha_机具(deg) | Depth(mm) | Timestamp\n"
-                )
-            print(f"日志文件 '{log_filename}' 已创建。")
-        except Exception as e:
-            print(f"创建日志文件失败: {e}")
-            log_file = None
+    log_file, _ = init_logging(log_enabled)
 
     depth_history = []
     send_counter = 0
@@ -933,13 +948,16 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                     and "AngZ" in data[0x50]
                 ):
                     ang_x = data[0x50]["AngX"]
+                    ang_y = data[0x50]["AngY"]
+                    ang_z = data[0x50]["AngZ"]
                     if device_name == impl_name:  # 机具角度传感器
                         current_alpha = ang_x
                         if initial_alpha is None:
                             initial_alpha = current_alpha
                             print(f"初始化 ALPHA_0 = {initial_alpha:.2f}°")
                         print(
-                            f"{device_name}: AngX={ang_x:.2f}° (相对初始: {ang_x - initial_alpha:.2f}°)"
+                            f"{device_name}: AngX={ang_x:.2f}° AngY={ang_y:.2f}° AngZ={ang_z:.2f}° "
+                            # f"{device_name}: AngY={ang_x:.2f}° (相对初始: {ang_x - initial_alpha:.2f}°)"
                         )
                     elif device_name == veh_name:  # 车身角度传感器
                         current_beta = ang_x
@@ -947,7 +965,8 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                             initial_beta = current_beta
                             print(f"初始化 BETA_0 = {initial_beta:.2f}°")
                         print(
-                            f"{device_name}: AngX={ang_x:.2f}° (相对初始: {ang_x - initial_beta:.2f}°)"
+                            f"{device_name}: AngX={ang_x:.2f}° AngY={ang_y:.2f}° AngZ={ang_z:.2f}° "
+                            # f"{device_name}: AngY={ang_x:.2f}° (相对初始: {ang_x - initial_beta:.2f}°)"
                         )
                 else:
                     print(f"{device_name}: 暂无角度数据")
@@ -1005,12 +1024,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                     pda_sender.send_depth_stability(depth_mm, stability)
 
                 # 写入日志（使用保持的文件句柄）
-                if log_file:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                    log_file.write(
-                        f"{current_beta:.3f} | {current_alpha:.3f} | {depth_mm:.2f} | {timestamp}\n"
-                    )
-                    log_file.flush()
+                write_log_entry(log_file, current_beta, current_alpha, depth_mm)
             else:
                 if initial_alpha is None or initial_beta is None:
                     print("\n等待初始角度数据...")
