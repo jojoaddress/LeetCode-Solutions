@@ -925,7 +925,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
     initial_status_sent = False
 
     # 日志文件（保持句柄）
-    log_file, _ = init_logging(log_enabled)
+    # log_file, _ = init_logging(log_enabled)
 
     depth_history = []
     send_counter = 0
@@ -951,7 +951,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                     ang_y = data[0x50]["AngY"]
                     ang_z = data[0x50]["AngZ"]
                     if device_name == impl_name:  # 机具角度传感器
-                        current_alpha = ang_x
+                        current_alpha = ang_y
                         if initial_alpha is None:
                             initial_alpha = current_alpha
                             print(f"初始化 ALPHA_0 = {initial_alpha:.2f}°")
@@ -960,7 +960,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                             # f"{device_name}: AngY={ang_x:.2f}° (相对初始: {ang_x - initial_alpha:.2f}°)"
                         )
                     elif device_name == veh_name:  # 车身角度传感器
-                        current_beta = ang_x
+                        current_beta = ang_y
                         if initial_beta is None:
                             initial_beta = current_beta
                             print(f"初始化 BETA_0 = {initial_beta:.2f}°")
@@ -1024,7 +1024,7 @@ def monitor_data(shared_data, pda_sender, tool_config, monitor_config, device_na
                     pda_sender.send_depth_stability(depth_mm, stability)
 
                 # 写入日志（使用保持的文件句柄）
-                write_log_entry(log_file, current_beta, current_alpha, depth_mm)
+                # write_log_entry(log_file, current_beta, current_alpha, depth_mm)
             else:
                 if initial_alpha is None or initial_beta is None:
                     print("\n等待初始角度数据...")

@@ -46,6 +46,28 @@ class TerrainModel:
     def get_beta(self, index: int) -> float:
         return self.beta_deg[index]
 
+    def get_speed(
+        self,
+        index: int,
+        base_speed: float = 2.0,
+        slope_coeff: float = 0.1,
+        random_std: float = 0.2,
+    ) -> float:
+        """
+        根据地形坡度模拟车速变化。
+        :param base_speed:   基础车速 (m/s)
+        :param slope_coeff:  坡度影响系数 (m/s per degree) 上坡减速，下坡加速
+        :param random_std:   随机波动标准差 (m/s)
+        :return: 瞬时速度 (m/s)
+        """
+        slope_deg = self.beta_deg[index]  # 车身俯仰角 = 地形坡度
+        # 坡度影响：上坡（正坡度）减速，下坡加速
+        speed = base_speed - slope_coeff * slope_deg
+        # 添加随机波动
+        speed += np.random.normal(0, random_std)
+        # 限制合理范围 0.5 ~ 3.5 m/s
+        return np.clip(speed, 0.5, 3.5)
+
 
 # ======================= 2. 悬挂控制器（模拟机具调节）=======================
 class SuspensionController:
@@ -67,129 +89,24 @@ class SuspensionController:
         return delta_change
 
 
-# ======================= 3. 机具计算器抽象基类 =======================
-class ImplementCalculator(ABC):
-    @abstractmethod
-    def calculate_depth(
-        self, alpha_deg: float, beta_deg: float, alpha0_deg: float, beta0_deg: float
-    ) -> float:
-        """返回耕深（毫米）"""
-        pass
-
-    @abstractmethod
-    def get_characteristic_length(self) -> float:
-        """返回特征长度（mm），用于控制器初始估算"""
-        pass
-
-
-# 具体机具实现
-class SubsoilerCalculator(ImplementCalculator):
-    def __init__(
-        self,
-        L1: float,
-        Lt: float,
-        Ht: float,
-        install_angle: float = 0.0,
-        calibration: float = 1.0,
-        zero_offset: float = 0.0,
-    ):
-        self.L1 = L1
-        self.Lt = Lt
-        self.Ht = Ht
-        self.install_angle = install_angle
-        self.calibration = calibration
-        self.zero_offset = zero_offset
-
-    def calculate_depth(
-        self, alpha_deg: float, beta_deg: float, alpha0_deg: float, beta0_deg: float
-    ) -> float:
-        delta = (alpha_deg - alpha0_deg) - (beta_deg - beta0_deg) + self.install_angle
-        rad = math.radians(delta)
-        raw = (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
-        return max(0.0, raw * self.calibration - self.zero_offset)
-
-    def get_characteristic_length(self) -> float:
-        return self.L1 + self.Lt
-
-
-class RotaryTillerCalculator(ImplementCalculator):
-    def __init__(
-        self,
-        Larm: float,
-        R: float,
-        install_angle: float = 0.0,
-        calibration: float = 1.0,
-        zero_offset: float = 0.0,
-    ):
-        self.Larm = Larm
-        self.R = R
-        self.install_angle = install_angle
-        self.calibration = calibration
-        self.zero_offset = zero_offset
-
-    def calculate_depth(
-        self, alpha_deg: float, beta_deg: float, alpha0_deg: float, beta0_deg: float
-    ) -> float:
-        delta = (alpha_deg - alpha0_deg) - (beta_deg - beta0_deg) + self.install_angle
-        rad = math.radians(delta)
-        raw = self.Larm * math.sin(rad) + self.R
-        return max(0.0, raw * self.calibration - self.zero_offset)
-
-    def get_characteristic_length(self) -> float:
-        return self.Larm
-
-
-class PloughCalculator(ImplementCalculator):
-    def __init__(
-        self,
-        Lbeam: float,
-        theta_install: float,
-        install_angle: float = 0.0,
-        calibration: float = 1.0,
-        zero_offset: float = 0.0,
-    ):
-        self.Lbeam = Lbeam
-        self.theta_install = theta_install
-        self.install_angle = install_angle
-        self.calibration = calibration
-        self.zero_offset = zero_offset
-
-    def calculate_depth(
-        self, alpha_deg: float, beta_deg: float, alpha0_deg: float, beta0_deg: float
-    ) -> float:
-        delta = (
-            (alpha_deg - alpha0_deg)
-            - (beta_deg - beta0_deg)
-            + self.theta_install
-            + self.install_angle
-        )
-        rad = math.radians(delta)
-        raw = self.Lbeam * math.sin(rad)
-        return max(0.0, raw * self.calibration - self.zero_offset)
-
-    def get_characteristic_length(self) -> float:
-        return self.Lbeam
+# ======================= 3. 机具计算器 =======================
+# 导入外部机具类
+from Subsoiler import SubsoilerCalculator
+from RotaryTiller import RotaryTillerCalculator
+from Plough import PloughCalculator
 
 
 # ======================= 4. 仿真与验证引擎 =======================
 class SimulationValidator:
     def __init__(
         self,
-        implement: ImplementCalculator,
+        implement: Any,  # 使用外部类，不再限制为 ImplementCalculator
         terrain: TerrainModel,
         alpha0_deg: float = 0.0,
         beta0_deg: float = 0.0,
         target_depth_mm: float = 200.0,
         add_sensor_noise_std: float = 0.5,
     ):
-        """
-        :param implement: 机具计算器实例
-        :param terrain: 地形模型实例
-        :param alpha0_deg: 机具初始角度（度）
-        :param beta0_deg: 车身初始角度（度）
-        :param target_depth_mm: 目标耕深（毫米）
-        :param add_sensor_noise_std: 倾角传感器噪声标准差（度）
-        """
         self.impl = implement
         self.terrain = terrain
         self.alpha0 = alpha0_deg
@@ -198,56 +115,69 @@ class SimulationValidator:
         self.noise_std = add_sensor_noise_std
 
     def run_simulation(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        执行仿真，返回:
-            x: 距离（米）
-            beta_meas: 测量的车身俯仰角（度，含噪声）
-            alpha_meas: 测量的机具角（度，含噪声）
-            depth_calc: 由机具公式计算出的耕深（毫米）
-        """
         n = len(self.terrain.x)
         beta_true = self.terrain.beta_deg
-        # 初始化机具角 alpha_true（初始等于 alpha0）
-        alpha_true = np.full(n, self.alpha0, dtype=float)
-        # 模拟闭环控制：每个采样点根据上一深度调整 alpha
-        # 使用简单比例控制
-        Kp = 0.3  # 控制增益，度/mm
+        x = self.terrain.x
+        dx = x[1] - x[0]  # 固定空间步长 (m)
+        # 初始相对角 gamma（使得初始深度为0，因为已标定）
+        gamma = 0.0
+        gamma_history = [gamma]
+        alpha_true = np.zeros(n)
+        alpha_true[0] = beta_true[0] + gamma
+
+        # 控制参数（针对深松机调优）
+        Kp = 0.015  # 增益 (deg/mm)
+        max_rate = 5.0  # 最大相对角变化速率 (deg/s)
+        tau = 0.1  # 液压系统时间常数 (s)
+
         for i in range(1, n):
-            # 获取上一位置的深度
-            depth_prev = self.impl.calculate_depth(
+            # 当前瞬时速度 (m/s)
+            v = self.terrain.get_speed(
+                i, base_speed=2.0, slope_coeff=0.08, random_std=0.15
+            )
+            dt = dx / v  # 时间步长 (s)
+            if dt <= 0:
+                dt = 0.05  # 安全保护
+
+            # 上一时刻深度
+            depth_prev = self.impl.calculate(
                 alpha_true[i - 1], beta_true[i - 1], self.alpha0, self.beta0
             )
             error = self.target_depth - depth_prev
-            # 调整 alpha 相对于 beta 的变化量
-            delta_alpha = Kp * error
-            # 限制单步调整幅度
-            delta_alpha = np.clip(delta_alpha, -2.0, 2.0)
-            # 同时考虑地形变化影响（保持机具相对地面角度基本恒定）
-            # 这里简单地将 alpha 设为上一值加上调整量
-            alpha_true[i] = alpha_true[i - 1] + delta_alpha
-            # 可选：加入随机扰动模拟液压响应
-            alpha_true[i] += np.random.normal(0, 0.2)
 
-        # 添加传感器噪声
-        beta_meas = beta_true + np.random.normal(0, self.noise_std, n)
-        alpha_meas = alpha_true + np.random.normal(0, self.noise_std, n)
+            # 期望的 gamma 变化率 (deg/s)
+            delta_gamma_rate = Kp * error
+            # 速率限制 (deg/s)
+            delta_gamma_rate = np.clip(delta_gamma_rate, -max_rate, max_rate)
+            # 角度变化量 (deg)
+            delta_gamma_cmd = delta_gamma_rate * dt
+            gamma_cmd = gamma + delta_gamma_cmd
 
-        # 计算耕深
+            # 一阶滞后模拟液压响应 (时间常数 tau)
+            gamma += (gamma_cmd - gamma) * (dt / tau)
+            gamma_history.append(gamma)
+
+            # 计算机具绝对角
+            alpha_true[i] = beta_true[i] + gamma
+            # 添加执行器噪声
+            alpha_true[i] += np.random.normal(0, 0.05)
+
+        # 传感器噪声（含车速影响可忽略）
+        beta_meas = beta_true + np.random.normal(0, 0.1, n)
+        alpha_meas = alpha_true + np.random.normal(0, 0.1, n)
+
         depth_calc = np.array(
             [
-                self.impl.calculate_depth(
+                self.impl.calculate(
                     alpha_meas[i], beta_meas[i], self.alpha0, self.beta0
                 )
                 for i in range(n)
             ]
         )
-        return self.terrain.x, beta_meas, alpha_meas, depth_calc
+        return x, beta_meas, alpha_meas, depth_calc, gamma_history
 
     def evaluate(self, plot: bool = True) -> Dict[str, float]:
-        """运行仿真并评估精度指标"""
-        x, beta, alpha, depth = self.run_simulation()
-        # 理论期望深度：目标深度加上地形影响导致的偏差？实际上悬挂控制会尽量维持深度稳定，
-        # 所以期望深度应为目标深度附近。这里我们简单以目标深度为基准计算误差。
+        x, beta, alpha, depth, gamma_history = self.run_simulation()
         error = depth - self.target_depth
         mae = np.mean(np.abs(error))
         rmse = np.sqrt(np.mean(error**2))
@@ -256,41 +186,44 @@ class SimulationValidator:
         print(f"  平均绝对误差 MAE: {mae:.2f} mm")
         print(f"  均方根误差 RMSE: {rmse:.2f} mm")
         print(f"  最大绝对误差: {max_err:.2f} mm")
-
+        # 特征长度打印已移除，因为外部类无此方法
         if plot:
-            plt.figure(figsize=(12, 8))
-            plt.subplot(3, 1, 1)
-            plt.plot(x, beta, label="车身俯仰角 β (含噪声)")
-            plt.plot(x, alpha, label="机具角 α (含噪声)")
-            plt.ylabel("角度 (度)")
-            plt.legend()
-            plt.grid(True)
+            fig, axs = plt.subplots(4, 1, figsize=(12, 10))
 
-            plt.subplot(3, 1, 2)
-            plt.plot(x, depth, label="计算耕深")
-            plt.axhline(self.target_depth, color="r", linestyle="--", label="目标深度")
-            plt.ylabel("耕深 (mm)")
-            plt.legend()
-            plt.grid(True)
+            axs[0].plot(x, beta, label="车身俯仰角 β (含噪声)")
+            axs[0].plot(x, alpha, label="机具角 α (含噪声)")
+            axs[0].set_ylabel("角度 (度)")
+            axs[0].legend()
+            axs[0].grid(True)
 
-            plt.subplot(3, 1, 3)
-            plt.plot(x, error, label="误差")
-            plt.xlabel("距离 (m)")
-            plt.ylabel("误差 (mm)")
-            plt.legend()
-            plt.grid(True)
+            axs[1].plot(x, depth, label="计算耕深")
+            axs[1].axhline(
+                self.target_depth, color="r", linestyle="--", label="目标深度"
+            )
+            axs[1].set_ylabel("耕深 (mm)")
+            axs[1].legend()
+            axs[1].grid(True)
+
+            axs[2].plot(x, error, label="误差")
+            axs[2].set_xlabel("距离 (m)")
+            axs[2].set_ylabel("误差 (mm)")
+            axs[2].legend()
+            axs[2].grid(True)
+
+            axs[3].plot(x, gamma_history, label="相对角 γ (deg)")
+            axs[3].set_xlabel("距离 (m)")
+            axs[3].set_ylabel("γ (deg)")
+            axs[3].legend()
+            axs[3].grid(True)
+
             plt.tight_layout()
             plt.show()
-
         return {"MAE": mae, "RMSE": rmse, "MaxError": max_err}
 
 
 # ======================= 5. 主测试函数 =======================
 def main():
-    # 设置随机种子以便复现
     np.random.seed(42)
-
-    # 创建地形（长度100米，分辨率0.2米，起伏适中）
     terrain = TerrainModel(
         length=100.0,
         resolution=0.2,
@@ -299,14 +232,14 @@ def main():
         random_roughness=0.005,
     )
 
-    # 定义各机具的参数（单位：毫米，角度）
+    subsoiler = SubsoilerCalculator(L1=1280, Lt=680, Ht=450, install_angle=0.0)
+    subsoiler.calibrate_zero(0.0, 0.0)  # 零点标定
     implements = {
-        "深松机": SubsoilerCalculator(L1=1280, Lt=680, Ht=450, install_angle=0.0),
-        "旋耕机": RotaryTillerCalculator(Larm=800, R=250, install_angle=0.0),
-        "翻转犁": PloughCalculator(Lbeam=1200, theta_install=15.0, install_angle=0.0),
+        "深松机": subsoiler,
+        # "旋耕机": RotaryTillerCalculator(Larm=800, R=250, install_angle=0.0),
+        # "翻转犁": PloughCalculator(Lbeam=1200, theta_install=15.0, install_angle=0.0),
     }
 
-    # 对每个机具进行仿真验证
     for name, impl in implements.items():
         print(f"\n{'='*50}\n正在验证: {name}\n{'='*50}")
         validator = SimulationValidator(
@@ -314,12 +247,10 @@ def main():
             terrain=terrain,
             alpha0_deg=0.0,
             beta0_deg=0.0,
-            target_depth_mm=200.0,
-            add_sensor_noise_std=0.3,  # 模拟传感器噪声
+            target_depth_mm=-200.0,
+            add_sensor_noise_std=0.3,
         )
         metrics = validator.evaluate(plot=True)
-        # 可选：打印特征长度
-        print(f"特征长度: {impl.get_characteristic_length()} mm")
 
 
 if __name__ == "__main__":

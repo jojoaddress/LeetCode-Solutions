@@ -2,13 +2,13 @@
     "devices": {
         "implement": {
             "name": "机具",
-            "port": "COM7",
+            "port": "COM8",
             "baudrate": 9600,
             "address": 80
         },
         "vehicle": {
             "name": "机身",
-            "port": "COM9",
+            "port": "COM7",
             "baudrate": 9600,
             "address": 80
         },

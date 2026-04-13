@@ -19,7 +19,7 @@ class SubsoilerCalculator:
             Ht: 悬挂点至铲尖垂直距离（铲尖低于悬挂点为正），单位 mm
             install_angle: 安装角偏移（度），额外加到角度差上
             calibration: 线性校准系数
-            zero_offset: 零点偏移（mm），最终结果减去该值
+            zero_offset: 零点偏移（mm），最终结果加上该值
         """
         self.L1 = L1
         self.Lt = Lt
@@ -32,7 +32,7 @@ class SubsoilerCalculator:
         """
         计算耕深（毫米）
         alpha, beta, alpha0, beta0 单位：度
-        返回：耕深（mm），非负
+        返回：耕深（mm）
         """
         # 相对角度变化
         delta_alpha = alpha - alpha0
@@ -45,7 +45,19 @@ class SubsoilerCalculator:
         raw_depth = (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
 
         # 校准与零点偏移
-        calibrated = raw_depth * self.calibration - self.zero_offset
+        calibrated = raw_depth * self.calibration + self.zero_offset
 
         # 确保非负并取整
-        return max(0, int(calibrated))
+        return int(calibrated)
+
+    def calibrate_zero(self, alpha0_deg: float, beta0_deg: float) -> None:
+        """
+        根据给定的初始角度，自动设置 zero_offset，使该状态下计算出的深度为 0。
+        alpha0_deg, beta0_deg: 初始时机具和车身的绝对角度（度）
+        """
+        # 计算初始状态下的原始深度（未应用 zero_offset）
+        delta = (alpha0_deg - beta0_deg) + self.install_angle
+        rad = math.radians(delta)
+        raw0 = (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
+        # 设置 zero_offset，使 calibrated = raw0 * calibration + zero_offset = 0
+        self.zero_offset = -raw0 * self.calibration
