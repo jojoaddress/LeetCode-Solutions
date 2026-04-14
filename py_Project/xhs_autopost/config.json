@@ -1,0 +1,13 @@
+{
+    "openclaw_url": "http://localhost:18789",
+    "openclaw_token": "9m9a2dqw2dr9wcb05myad73r3bfw7p2g0km0hsyd9tnn6mby",
+    "xiaohongshu_cookies": "xhs_cookies.json",
+    "headless": true,
+    "daily_limit": 2,
+    "publish_interval": {
+        "min": 600,
+        "max": 1200
+    },
+    "image_folder": "./images",
+    "topics_file": "./topics.txt"
+}
