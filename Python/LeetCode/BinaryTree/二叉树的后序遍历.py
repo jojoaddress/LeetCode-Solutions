@@ -11,16 +11,16 @@ class TreeNode:
 
 
 class Solution:
-    def preorderTraversal(self, root: Optional[TreeNode]) -> List[int]:
-
+    def postorderTraversal(self, root: Optional[TreeNode]) -> List[int]:
         res = []
 
         def dfs(root: Optional[TreeNode]) -> None:
             if not root:
                 return
-            res.append(root.val)
             dfs(root.left)
+
             dfs(root.right)
+            res.append(root.val)
 
         dfs(root)
         return res
@@ -29,6 +29,6 @@ class Solution:
 if __name__ == "__main__":
     solution = Solution()
     tree = TreeNode(1, None, TreeNode(2, TreeNode(3), None))  # [1,null,2,3]
-    result = solution.preorderTraversal(tree)
+    result = solution.postorderTraversal(tree)
     for i in result:
         print(i)

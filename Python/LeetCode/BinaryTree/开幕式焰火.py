@@ -11,24 +11,23 @@ class TreeNode:
 
 
 class Solution:
-    def preorderTraversal(self, root: Optional[TreeNode]) -> List[int]:
+    def numColor(self, root: TreeNode) -> int:
+        cnt = defaultdict(int)
 
-        res = []
-
-        def dfs(root: Optional[TreeNode]) -> None:
+        def dfs(root: TreeNode) -> None:
             if not root:
                 return
-            res.append(root.val)
+
+            cnt[root.val] += 1
             dfs(root.left)
             dfs(root.right)
 
         dfs(root)
-        return res
+        return len(cnt)
 
 
 if __name__ == "__main__":
     solution = Solution()
     tree = TreeNode(1, None, TreeNode(2, TreeNode(3), None))  # [1,null,2,3]
-    result = solution.preorderTraversal(tree)
-    for i in result:
-        print(i)
+    result = solution.numColor(tree)
+    print(result)
