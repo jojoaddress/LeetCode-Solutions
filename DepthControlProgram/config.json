@@ -13,7 +13,7 @@
             "address": 80
         },
         "pda": {
-            "port": "/dev/ttyUSB1",
+            "port": "COM10",
             "baudrate": 9600
         }
     },
@@ -29,6 +29,12 @@
         }
     },
     "monitor": {
+        "soil_hardness_mpa": 2.5,
+        "default_speed_kph": 6.0,
+        "height_send_interval": 3,
+        "rls_forget_factor": 0.98,
+        "rls_delta": 100.0,
+        "rls_ridge_penalty": 1e-4,
         "window_seconds": 10.0,
         "min_samples": 3,
         "send_interval": 5,
