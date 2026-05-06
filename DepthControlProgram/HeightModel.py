@@ -177,7 +177,7 @@ class MultiToolHeightModel:
         )
 
     def load_models(self, filepath):
-        """从文件加载模型参数（可选）"""
+        """从文件加载模型参数"""
         data = np.load(filepath)
         for key in data.files:
             if key.endswith("_theta"):
