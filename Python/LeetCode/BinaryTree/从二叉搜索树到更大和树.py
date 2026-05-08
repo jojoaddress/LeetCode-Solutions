@@ -1,0 +1,28 @@
+from typing import List
+from typing import Optional
+from collections import defaultdict
+from math import inf
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+class Solution:
+    def bstToGst(self, root: Optional[TreeNode]) -> Optional[TreeNode]:
+        s = 0
+
+        def dfs(root: Optional[TreeNode]) -> None:
+            if not root:
+                return
+            dfs(root.right)
+            nonlocal s
+            s += root.val
+            root.val = s
+            dfs(root.left)
+
+        dfs(root)
+        return root

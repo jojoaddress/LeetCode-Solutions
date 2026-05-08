@@ -14,7 +14,7 @@ import queue
 from Subsoiler import SubsoilerCalculator
 from RotaryTiller import RotaryTillerCalculator
 from Plough import PloughCalculator
-from HeightModel import MultiToolHeightModel
+from ForwardDepthModel import MultiToolHeightModel  # 正向深度模型容器
 
 # 机具计算器注册表
 CALCULATOR_REGISTRY = {
@@ -33,6 +33,7 @@ PDA_END_BYTE = 0xAA  # PDA结束标志
 PDA_CMD_REQ_DEPTH_ONCE = 0x10  # 请求单次耕深数据（响应一次耕深+稳定性+高度）
 PDA_CMD_START_STREAM = 0x11  # 开始连续上报，未带数据则使用默认间隔1秒
 PDA_CMD_STOP_STREAM = 0x12  # 停止连续上报
+PDA_CMD_ZERO_CALIBRATE = 0x13  # 零点校准（铲尖刚好触地时下发）
 
 PDA_CMD_TOOL_TYPE = 0x21  # 机具类别
 PDA_CMD_SENSOR_STATUS = 0x22  # 传感器状态
@@ -44,12 +45,11 @@ PDA_CMD_SET_TARGET_DEPTH = 0x30  # 设置目标耕深（2字节，mm）
 PDA_CMD_SET_ACTUAL_HEIGHT = 0x31  # 下发实际三点悬挂高度（2字节，mm）
 PDA_CMD_SET_SPEED = 0x32  # 下发车辆作业速度（2字节，0.01 km/h，即放大100倍）
 
+
 # 机具类型定义
 TOOL_TYPE_ROTARY_TILLER = 0x01  # 旋耕机
 TOOL_TYPE_SUBSOILER = 0x02  # 深松机
 TOOL_TYPE_PLOUGH = 0x03  # 翻转犁
-
-INIT_ANGLE = 82.2
 
 # 传感器状态定义
 SENSOR_STATUS_NORMAL = 0x01  # 正常工作
@@ -722,14 +722,14 @@ class PDASender:
         elif cmd == PDA_CMD_STOP_STREAM:
             self.rx_queue.put(("stop_stream", None))
         elif cmd == PDA_CMD_SET_TARGET_DEPTH:
+            # 扩展：第3字节为控制使能（0=停止，非0=启动）
             if len(real_data) >= 2:
                 depth = (real_data[0] << 8) | real_data[1]
-                # 扩展：第3字节为控制使能（0=停止，非0=启动）
+                enable = True
                 if len(real_data) >= 3:
                     enable = real_data[2] != 0
-                else:
-                    enable = True  # 兼容旧指令，默认启用
                 self.rx_queue.put(("target_depth", (depth, enable)))
+
         elif cmd == PDA_CMD_SET_ACTUAL_HEIGHT:
             if len(real_data) >= 2:
                 height = (real_data[0] << 8) | real_data[1]
@@ -739,6 +739,8 @@ class PDASender:
                 speed_raw = (real_data[0] << 8) | real_data[1]
                 speed = speed_raw / 100.0
                 self.rx_queue.put(("speed", speed))
+        elif cmd == PDA_CMD_ZERO_CALIBRATE:
+            self.rx_queue.put(("zero_calibrate", None))
 
     def get_command(self, block=False, timeout=None):
         try:
@@ -825,31 +827,15 @@ class PDASender:
         packet = self.build_complete_packet(pda_data)
         return self.send_complete_packet(packet)
 
-    def send_depth_data(self, depth_value):
+    def send_depth_data(self, depth_mm):
         """
-        发送耕深数据（完整协议）
-        depth_value: 原始深度值（厘米）
+        发送耕深（毫米），直接使用毫米值发送
         """
-        # 将深度值扩大1000倍并取整数部分（转换为毫米的整数）
-        depth_mm = int(depth_value * 10)
-
-        # 确保深度值在合理范围内（0-65535毫米）
-        if depth_mm < 0:
-            depth_mm = 0
-        elif depth_mm > 65535:
-            depth_mm = 65535
-
-        # print(f"计算耕深: {depth_value:.3f}m -> {depth_mm}mm")
-
-        # 将深度值转换为2字节（大端序）
+        depth_mm = int(depth_mm)
+        depth_mm = max(0, min(65535, depth_mm))
         depth_bytes = [(depth_mm >> 8) & 0xFF, depth_mm & 0xFF]
-
-        # PDA数据部分 = [指令(1)] + [真实数据(2)]
         pda_data = [PDA_CMD_DEPTH] + depth_bytes
-
-        # 构建完整协议数据包并发送
-        packet = self.build_complete_packet(pda_data)
-        return self.send_complete_packet(packet)
+        return self.send_complete_packet(self.build_complete_packet(pda_data))
 
     def send_depth_stability(self, depth_mm, stability_percent):
         """
@@ -857,30 +843,23 @@ class PDASender:
         :param depth_mm: 耕深（毫米），整数 0~65535
         :param stability_percent: 稳定性百分比，整数 0~100
         """
-        # 耕深转2字节大端序
+        depth_mm = int(depth_mm)
+        depth_mm = max(0, min(65535, depth_mm))
+        stability_percent = max(0, min(100, stability_percent))
         depth_bytes = [(depth_mm >> 8) & 0xFF, depth_mm & 0xFF]
-        # 稳定性单字节
-        stability_byte = stability_percent & 0xFF
-        # PDA数据部分：指令 + 耕深(2) + 稳定性(1)
-        pda_data = [PDA_CMD_DEPTH_STABILITY] + depth_bytes + [stability_byte]
-        packet = self.build_complete_packet(pda_data)
-        return self.send_complete_packet(packet)
+        pda_data = [PDA_CMD_DEPTH_STABILITY] + depth_bytes + [stability_percent]
+        return self.send_complete_packet(self.build_complete_packet(pda_data))
 
     def send_height_data(self, height_mm):
         """
         发送三点悬挂高度数据（指令 0x25）
         :param height_mm: 高度（毫米），整数 0~65535
         """
-        # 限制范围
-        if height_mm < 0:
-            height_mm = 0
-        elif height_mm > 65535:
-            height_mm = 65535
-        # 转换为2字节大端序
+        height_mm = int(height_mm)
+        height_mm = max(0, min(65535, height_mm))
         height_bytes = [(height_mm >> 8) & 0xFF, height_mm & 0xFF]
-        pda_data = [PDA_CMD_SUSPENSION_HEIGHT] + height_bytes  # 指令 0x25
-        packet = self.build_complete_packet(pda_data)
-        return self.send_complete_packet(packet)
+        pda_data = [PDA_CMD_SUSPENSION_HEIGHT] + height_bytes
+        return self.send_complete_packet(self.build_complete_packet(pda_data))
 
     def print_packet_details(self, packet, command, data_bytes):
         """打印完整协议数据包详细信息"""
@@ -993,37 +972,26 @@ def compute_stability(depth_history, min_samples=3):
 
 
 def init_logging(log_enabled, log_dir="."):
-    """
-    初始化日志文件。
-    参数:
-        log_enabled: 是否启用日志
-        log_dir: 日志保存目录（默认为当前目录）
-    返回: (raw_log_file, model_log_file) 或 (None, None)
-    """
     if not log_enabled:
         return None, None
-
-    # 创建日志目录（如果不存在）
     os.makedirs(log_dir, exist_ok=True)
-
     raw_log_filename = f"raw_data-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
     model_log_filename = (
         f"model_train-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
     )
-
     raw_log_path = os.path.join(log_dir, raw_log_filename)
     model_log_path = os.path.join(log_dir, model_log_filename)
-
     try:
         raw_log_file = open(raw_log_path, "a", encoding="utf-8")
         model_log_file = open(model_log_path, "a", encoding="utf-8")
+        # 更新后的日志列
         if os.path.getsize(raw_log_path) == 0:
             raw_log_file.write(
-                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,PredHeight_mm,ActualHeight_mm,TargetDepth_mm,CmdHeight_mm,PredError_mm\n"
+                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,PredDepth_mm,ActualHeight_mm,TargetDepth_mm,CmdHeight_mm,DepthError_mm\n"
             )
         if os.path.getsize(model_log_path) == 0:
             model_log_file.write(
-                "Timestamp,UpdateIdx,ActualHeight_mm,PredHeight_mm,Error_mm\n"
+                "Timestamp,UpdateIdx,ActualDepth_mm,PredDepth_mm,Error_mm\n"
             )
         print(f"原始数据日志: {raw_log_path}")
         print(f"模型收敛日志: {model_log_path}")
@@ -1038,56 +1006,76 @@ def write_raw_log_entry(
     beta,
     alpha,
     depth_mm,
-    pred_height_mm,
+    pred_depth_mm,
     actual_height_mm,
     target_depth_mm,
     cmd_height_mm,
-    pred_error_mm,
+    depth_error_mm,
 ):
-    """写入原始数据日志（CSV格式）"""
     if raw_log_file is None:
         return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    # 格式化字段（处理 None / -1 等无效值）
+    err_str = f"{depth_error_mm:.1f}" if depth_error_mm is not None else "NaN"
+    pred_str = f"{pred_depth_mm:.1f}" if pred_depth_mm is not None else "NaN"
+    act_h_str = (
+        f"{actual_height_mm:.1f}"
+        if actual_height_mm and actual_height_mm != -1
+        else "NaN"
+    )
+    target_str = f"{target_depth_mm}" if target_depth_mm is not None else -1
+    cmd_str = f"{cmd_height_mm}" if cmd_height_mm is not None else -1
+
+    # 写入文件
     raw_log_file.write(
         f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},"
-        f"{pred_height_mm:.2f},{actual_height_mm:.2f},"
-        f"{target_depth_mm if target_depth_mm is not None else -1},"
-        f"{cmd_height_mm if cmd_height_mm is not None else -1},"
-        f"{pred_error_mm:.2f}\n"
+        f"{pred_str},{act_h_str},"
+        f"{target_str},{cmd_str},"
+        f"{err_str}\n"
     )
     raw_log_file.flush()
 
+    # 同步打印到控制台
+    """ print(
+        f"[LOG RAW] {timestamp} | β={beta:.2f}° α={alpha:.2f}° Depth={depth_mm:.1f}mm | "
+        f"PredDepth={pred_str}mm | ActHeight={act_h_str}mm | "
+        f"Target={target_str}mm | CmdHeight={cmd_str}mm | Err={err_str}mm"
+    ) """
 
-def write_model_log_entry(model_log_file, update_idx, actual, pred, error):
-    """写入模型收敛日志（每次更新记录）"""
+
+def write_model_log_entry(
+    model_log_file, update_idx, actual_depth_mm, pred_depth_mm, error_mm
+):
     if model_log_file is None:
         return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    # 写入文件
     model_log_file.write(
-        f"{timestamp},{update_idx},{actual:.2f},{pred:.2f},{error:.2f}\n"
+        f"{timestamp},{update_idx},{actual_depth_mm:.2f},{pred_depth_mm:.2f},{error_mm:.2f}\n"
     )
     model_log_file.flush()
 
+    # 同步打印到控制台
+    """ print(
+        f"[LOG MODEL] {timestamp} | Update#{update_idx} | "
+        f"ActualDepth={actual_depth_mm:.2f}mm PredDepth={pred_depth_mm:.2f}mm Error={error_mm:.2f}mm"
+    ) """
+
 
 def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_names):
-    """
-    监控主函数：读取角度传感器数据，计算耕深，响应PDA指令，
-    支持训练模式（模型更新）和控制模式（目标深度闭环）。
-    """
-    # 在子进程中创建 PDA 发送器（包含接收线程）
     pda_sender = PDASender(pda_config["port"], pda_config["baudrate"])
     if not pda_sender.open_connection():
         print("错误: 无法打开 PDA 串口，监控进程退出")
         return
 
-    # 获取设备名称
     impl_name = device_names["implement"]
     veh_name = device_names["vehicle"]
 
-    # 创建机具计算器
     calculator = create_calculator(tool_config["type"], tool_config["params"])
 
-    # 创建高度自适应模型
+    # 正向深度模型
     rls_forget = monitor_config.get("rls_forget_factor", 0.98)
     rls_delta = monitor_config.get("rls_delta", 100.0)
     rls_ridge = monitor_config.get("rls_ridge_penalty", 1e-4)
@@ -1095,7 +1083,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     model_save_dir = monitor_config.get("model_save_dir", "./models")
     model_save_interval = monitor_config.get("model_save_interval", 10)
 
-    # 模型持久化：加载已有模型
     os.makedirs(model_save_dir, exist_ok=True)
     model_file = os.path.join(model_save_dir, "height_models.npz")
     if os.path.exists(model_file):
@@ -1107,7 +1094,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     else:
         print("未找到已保存的模型，将从零开始训练")
 
-    # 设置 PDA 发送器的机具类型
     tool_type_map = {
         "subsoiler": TOOL_TYPE_SUBSOILER,
         "rotary_tiller": TOOL_TYPE_ROTARY_TILLER,
@@ -1117,7 +1103,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
         tool_config["type"], TOOL_TYPE_SUBSOILER
     )
 
-    # 从配置中读取监控参数
     window_seconds = monitor_config.get("window_seconds", 10.0)
     min_samples = monitor_config.get("min_samples", 3)
     sleep_interval = monitor_config.get("sleep_interval", 1.0)
@@ -1126,8 +1111,10 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     soil_hardness = monitor_config.get("soil_hardness_mpa", 2.0)
     default_speed = monitor_config.get("default_speed_kph", 5.0)
     height_send_interval = monitor_config.get("height_send_interval", 3)
+    # 从配置文件读取控制增益，若未设置则默认0.8
+    kp = monitor_config.get("control_kp", 0.8)
 
-    # ---------- 模式管理器 ----------
+    # 全局模式控制器
     mode_ctx = ModeContext(
         height_model=height_model,
         tool_type=tool_config["type"],
@@ -1135,43 +1122,33 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
         height_send_interval=height_send_interval,
         model_save_dir=model_save_dir,
         model_save_interval=model_save_interval,
+        kp=kp,
     )
 
-    # 状态变量
     initial_alpha = None
     initial_beta = None
-    sensor_status_check_count = 0
-    initial_status_sent = False
-
-    # 上报控制
+    initialized = False  # 是否已通过归零指令完成初始化
     streaming = False
     stream_interval = 1.0
     last_stream_time = 0
-
-    # 动态速度（可被PDA下发覆盖）
     current_speed_kph = default_speed
 
-    # 日志
     raw_log_file, model_log_file = init_logging(log_enabled, log_dir)
-    last_actual_height = -1  # 最近一次收到的实际高度
-    last_cmd_height = -1  # 最近一次控制模式下发送的指令高度
+    last_actual_height = -1  # 最近一次PDA下发的实际悬挂高度
+    last_cmd_height = -1  # 最近一次控制模式发送的指令高度
 
-    # 深度历史（用于稳定性）
     depth_history = []
 
-    # ---------- 辅助函数：仅发送耕深与稳定性（不再发送高度） ----------
     def send_depth_stability_report(depth_mm, stability):
         pda_sender.send_depth_data(depth_mm)
         pda_sender.send_depth_stability(depth_mm, stability)
 
-    # 主循环
     try:
         while True:
             current_alpha = None
             current_beta = None
             sensor_data_available = True
 
-            # 读取共享数据中的角度信息
             for device_name, data in shared_data.items():
                 if (
                     data
@@ -1180,47 +1157,51 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     and "AngY" in data[0x50]
                     and "AngZ" in data[0x50]
                 ):
-                    ang_x = data[0x50]["AngX"]
                     ang_y = data[0x50]["AngY"]
-                    ang_z = data[0x50]["AngZ"]
-                    if device_name == impl_name:  # 机具角度传感器
+                    if device_name == impl_name:
                         current_alpha = ang_y
-                        if initial_alpha is None:
-                            initial_alpha = current_alpha
-                            print(f"初始化 ALPHA_0 = {initial_alpha:.2f}°")
-                    elif device_name == veh_name:  # 车身角度传感器
+                    elif device_name == veh_name:
                         current_beta = ang_y
-                        if initial_beta is None:
-                            initial_beta = current_beta
-                            print(f"初始化 BETA_0 = {initial_beta:.2f}°")
                 else:
                     sensor_data_available = False
+                current_time = time.time()
 
-            # 发送初始状态（机具类型 + 传感器状态）
-            """ if not initial_status_sent and sensor_data_available:
-                print("\n发送初始状态信息...")
-                pda_sender.send_tool_type(pda_sender.current_tool_type)
-                time.sleep(0.1)
-                pda_sender.send_sensor_status(pda_sender.current_sensor_status)
-                initial_status_sent = True """
+            # 处理不依赖深度的指令（零阶段响应）
+            while True:
+                cmd = pda_sender.get_command(block=False)
+                if cmd is None:
+                    break
+                typ, val = cmd
 
-            # 定期检查传感器状态
-            """ sensor_status_check_count += 1
-            if sensor_status_check_count >= 10:
-                pda_sender.current_sensor_status = (
-                    SENSOR_STATUS_NORMAL
-                    if sensor_data_available
-                    else SENSOR_STATUS_ERROR
-                )
-                pda_sender.send_sensor_status(pda_sender.current_sensor_status)
-                sensor_status_check_count = 0 """
+                if typ == "zero_calibrate":
+                    if current_alpha is not None and current_beta is not None:
+                        initial_alpha = current_alpha
+                        initial_beta = current_beta
+                        initialized = True
+                        calculator.calibrate_zero(current_alpha, current_beta)
+                        print(f"归零完成 α0={initial_alpha:.2f} β0={initial_beta:.2f}")
+                    else:
+                        print("归零失败：无角度数据")
 
-            # 计算耕深（需要初始角度和当前角度）
+                elif typ == "target_depth":
+                    depth, enable = val
+                    mode_ctx.enter_control(depth, enable)
+                    print(f"目标深度: {current_speed_kph:.2f} km/h")
+
+                elif typ == "speed":
+                    current_speed_kph = val
+                    print(f"作业速度更新: {current_speed_kph:.2f} km/h")
+
+            # 其他指令（req_once, actual_height）不在此处理，留给深度计算后
+            # 发送初始状态可取消注释，根据实际需要
+            # if not initial_status_sent and sensor_data_available:
+            #     pda_sender.send_tool_type(pda_sender.current_tool_type)
+            #     pda_sender.send_sensor_status(pda_sender.current_sensor_status)
+            #     initial_status_sent = True
+
+            # 3. 深度计算
             can_calculate = (
-                current_alpha is not None
-                and current_beta is not None
-                and initial_alpha is not None
-                and initial_beta is not None
+                initialized and current_alpha is not None and current_beta is not None
             )
 
             if can_calculate:
@@ -1230,67 +1211,49 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     alpha0=initial_alpha,
                     beta0=initial_beta,
                 )
-
-                # 坡度（使用车身角度）
                 slope_x = current_beta
                 slope_y = current_alpha
 
-                # 预测悬挂高度（仅用于展示和稳定性计算，不单独发送）
-                predicted_height = height_model.predict(
-                    tool_config["type"],
-                    depth_mm,
-                    soil_hardness,
-                    current_speed_kph,
-                    slope_x,
-                    slope_y,
-                )
-
-                # 更新深度历史，计算稳定性
-                current_time = time.time()
                 depth_history.append((current_time, depth_mm))
                 cutoff = current_time - window_seconds
                 depth_history = [(t, d) for t, d in depth_history if t >= cutoff]
                 stability = compute_stability(depth_history, min_samples)
 
-                # ---------- 处理来自 PDA 的指令（非阻塞） ----------
+                # 处理依赖当前深度的指令
                 while True:
                     cmd = pda_sender.get_command(block=False)
                     if cmd is None:
                         break
                     typ, val = cmd
                     if typ == "req_once":
-                        # 只回复耕深和稳定性
                         send_depth_stability_report(depth_mm, stability)
                         print("响应单次耕深请求")
                     elif typ == "start_stream":
                         streaming = True
                         stream_interval = val
-                        last_stream_time = time.time()
+                        last_stream_time = current_time
                         print(f"开始连续上报，间隔 {stream_interval} 秒")
                     elif typ == "stop_stream":
                         streaming = False
                         print("停止连续上报")
-                    elif typ == "target_depth":
-                        # 委托模式管理器处理
-                        depth, enable = val
-                        mode_ctx.enter_control(depth, enable)
                     elif typ == "actual_height":
-                        # 记录最新实际高度（供日志使用）
+                        # 训练模型：以PDA下发的实际高度为输入
                         last_actual_height = val
-                        env_feats = (
-                            depth_mm,
-                            soil_hardness,
-                            current_speed_kph,
-                            slope_x,
-                            slope_y,
+                        env_feats = (soil_hardness, current_speed_kph, slope_x, slope_y)
+                        result = mode_ctx.learn_from_actual_height(
+                            val, depth_mm, env_feats
                         )
-                        # 训练模式下更新模型，控制模式下自动忽略
-                        mode_ctx.learn_from_actual_height(val, env_feats)
-                    elif typ == "speed":
-                        current_speed_kph = val
-                        print(f"作业速度更新: {current_speed_kph:.2f} km/h")
+                        if result is not None and model_log_file is not None:
+                            pred_before, actual_d, err = result
+                            write_model_log_entry(
+                                model_log_file,
+                                mode_ctx.update_counter,
+                                actual_d,
+                                pred_before,
+                                err,
+                            )
 
-                # ---------- 控制模式：上发悬挂高度指令（带频率限制） ----------
+                # 控制模式尝试下发高度指令
                 cmd_height = mode_ctx.try_issue_height_command(
                     (depth_mm, soil_hardness, current_speed_kph, slope_x, slope_y),
                     current_time,
@@ -1298,33 +1261,39 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 if cmd_height is not None:
                     last_cmd_height = cmd_height
 
-                # ---------- 连续上报（仅耕深+稳定性） ----------
+                # 连续上报
                 if streaming and (current_time - last_stream_time >= stream_interval):
                     send_depth_stability_report(depth_mm, stability)
                     last_stream_time = current_time
 
-                # ---------- 写入原始数据日志 ----------
-                actual_for_log = last_actual_height if last_actual_height != -1 else -1
+                # 写入原始数据日志
+                pred_depth_for_log = (
+                    mode_ctx.last_pred_depth if mode_ctx.last_pred_depth >= 0 else None
+                )
+                actual_height_for_log = (
+                    last_actual_height if last_actual_height != -1 else None
+                )
                 target_for_log = (
                     mode_ctx.target_depth_mm
                     if mode_ctx.target_depth_mm is not None
                     else -1
                 )
                 cmd_for_log = last_cmd_height if last_cmd_height != -1 else -1
-                pred_error = (
-                    (actual_for_log - predicted_height) if actual_for_log != -1 else 0.0
-                )
+
+                depth_error = None
+                if pred_depth_for_log is not None:
+                    depth_error = depth_mm - pred_depth_for_log
 
                 write_raw_log_entry(
                     raw_log_file,
                     current_beta,
                     current_alpha,
                     depth_mm,
-                    predicted_height,
-                    actual_for_log,
+                    pred_depth_for_log,
+                    actual_height_for_log,
                     target_for_log,
                     cmd_for_log,
-                    pred_error,
+                    depth_error,
                 )
 
             else:
@@ -1336,16 +1305,15 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
             time.sleep(sleep_interval)
 
     finally:
-        # 程序退出前保存模型
         try:
             height_model.save_models(model_save_dir)
             print(f"最终模型已保存至 {model_save_dir}")
         except Exception as e:
             print(f"保存最终模型失败: {e}")
-        if model_log_file:
-            model_log_file.close()
         if raw_log_file:
             raw_log_file.close()
+        if model_log_file:
+            model_log_file.close()
         pda_sender.close_connection()
 
 
@@ -1355,8 +1323,6 @@ class OperationMode(Enum):
 
 
 class ModeContext:
-    """集中管理训练/控制模式的状态与行为"""
-
     def __init__(
         self,
         height_model,
@@ -1365,10 +1331,11 @@ class ModeContext:
         height_send_interval=3.0,
         model_save_dir="./models",
         model_save_interval=10,
+        kp=0.8,
     ):
         self.mode = OperationMode.TRAINING
         self.target_depth_mm = None
-        self.height_model = height_model
+        self.height_model = height_model  # 正向深度模型容器
         self.tool_type = tool_type
         self.pda_sender = pda_sender
         self.height_send_interval = height_send_interval
@@ -1376,12 +1343,13 @@ class ModeContext:
         self.model_save_dir = model_save_dir
         self.model_save_interval = model_save_interval
         self.update_counter = 0
+        self.kp = kp
+        self.last_pred_depth = -1.0  # 最近一次模型预测深度（用于日志）
 
     def is_control(self):
         return self.mode == OperationMode.CONTROL
 
     def enter_control(self, depth_mm, enable):
-        """根据PDA指令进入或退出控制模式"""
         if enable:
             self.mode = OperationMode.CONTROL
             self.target_depth_mm = depth_mm
@@ -1391,24 +1359,34 @@ class ModeContext:
             self.target_depth_mm = None
             print("[模式] 返回训练模式")
 
-    def learn_from_actual_height(self, actual_height_mm, env_features):
-        """训练模式下使用实际高度更新模型，控制模式下忽略"""
+    def learn_from_actual_height(self, actual_height_mm, actual_depth_mm, env_features):
+        """训练模式：以实际高度为输入，几何深度为真值，更新正向模型。
+        返回 (pred_before, actual_depth_mm, error) 供外部记录日志。
+        """
         if self.is_control():
-            print("[控制] 忽略实际悬挂高度（模型冻结）")
             return None
 
-        depth, hardness, speed, slope_x, slope_y = env_features
+        hardness, speed, slope_x, slope_y = env_features
+
         pred_before = self.height_model.predict(
-            self.tool_type, depth, hardness, speed, slope_x, slope_y
+            self.tool_type, actual_height_mm, hardness, speed, slope_x, slope_y
         )
-        error = actual_height_mm - pred_before
+        error = actual_depth_mm - pred_before
         self.height_model.update(
-            self.tool_type, depth, hardness, speed, slope_x, slope_y, actual_height_mm
+            self.tool_type,
+            actual_height_mm,
+            hardness,
+            speed,
+            slope_x,
+            slope_y,
+            actual_depth_mm,
         )
         self.update_counter += 1
+        self.last_pred_depth = pred_before
+
         print(
-            f"[训练] 更新#{self.update_counter}: 实际={actual_height_mm}mm, "
-            f"预测={pred_before:.1f}mm, 误差={error:.1f}mm"
+            f"[训练] 更新#{self.update_counter}: 高度={actual_height_mm}mm, "
+            f"几何深度={actual_depth_mm}mm, 预测深度={pred_before:.1f}mm, 误差={error:.1f}mm"
         )
 
         if self.update_counter % self.model_save_interval == 0:
@@ -1416,39 +1394,61 @@ class ModeContext:
                 self.height_model.save_models(self.model_save_dir)
             except Exception as e:
                 print(f"保存模型失败: {e}")
-        return error
+
+        # 返回关键数据，不再直接写日志
+        return pred_before, actual_depth_mm, error
 
     def try_issue_height_command(self, env_features, current_time):
-        """控制模式下，按间隔计算并发送悬挂高度指令，返回发送的高度或None"""
+        """
+        控制模式：解析逆映射 + 误差闭环，返回下发的指令高度（mm）或 None。
+        env_features = (current_depth_mm, hardness, speed, slope_x, slope_y)
+        """
         if not self.is_control():
             return None
         if current_time - self.last_cmd_time < self.height_send_interval:
             return None
 
-        depth, hardness, speed, slope_x, slope_y = env_features
-        # 基于目标耕深反推高度
-        cmd_height = self.height_model.predict(
+        current_depth_mm, hardness, speed, slope_x, slope_y = env_features
+
+        # 1. 逆映射计算基础高度
+        base_height = self.height_model.inverse_predict(
             self.tool_type, self.target_depth_mm, hardness, speed, slope_x, slope_y
         )
-        cmd_height = max(0, min(600, int(cmd_height)))
+
+        # 2. 闭环修正
+        error = self.target_depth_mm - current_depth_mm
+        model = self.height_model.get_model(self.tool_type)
+        denom = model.theta[1] + model.theta[6] * hardness
+        if abs(denom) < 1e-4:
+            adjusted_h = base_height
+        else:
+            adjusted_h = base_height + self.kp * error / denom
+
+        cmd_height = max(50, min(600, int(adjusted_h)))
         self.pda_sender.send_height_data(cmd_height)
         self.last_cmd_time = current_time
-        print(f"[控制] 下发悬挂高度指令: {cmd_height}mm")
+
+        # 3. 预测此指令高度对应的深度（用于日志）
+        pred_depth = self.height_model.predict(
+            self.tool_type, cmd_height, hardness, speed, slope_x, slope_y
+        )
+        self.last_pred_depth = pred_depth
+
+        print(
+            f"[控制] 下发悬挂高度: {cmd_height}mm (目标深度: {self.target_depth_mm}mm, "
+            f"当前深度: {current_depth_mm}mm, 误差: {error}mm)"
+        )
         return cmd_height
 
 
 if __name__ == "__main__":
-    # 加载配置
     config = load_config("config.json")
-
     manager = multiprocessing.Manager()
     shared_data = manager.dict()
     addr_list = [config["devices"]["implement"]["address"]]
 
-    # 创建 PDA 发送器
     pda_config = config["devices"]["pda"]
 
-    # 启动机具角度设备进程
     impl_config = config["devices"]["implement"]
     process_impl = multiprocessing.Process(
         target=run_device,
@@ -1461,7 +1461,6 @@ if __name__ == "__main__":
         ),
     )
 
-    # 启动车身角度设备进程
     veh_config = config["devices"]["vehicle"]
     process_veh = multiprocessing.Process(
         target=run_device,
@@ -1474,10 +1473,8 @@ if __name__ == "__main__":
         ),
     )
 
-    # 构造设备名称映射
     device_names = {"implement": impl_config["name"], "vehicle": veh_config["name"]}
 
-    # 创建监控进程，传入 device_names
     monitor_process = multiprocessing.Process(
         target=monitor_data,
         args=(shared_data, pda_config, config["tool"], config["monitor"], device_names),
