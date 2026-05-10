@@ -657,11 +657,11 @@ class PDASender:
     # PDA接收线程，持续监听RS485总线上的数据并解析完整协议数据包
     def _rx_loop(self):
         buffer = bytearray()
+        first_packet = True
         while not self.rx_stop_event.is_set():
             if self.serial_port and self.serial_port.in_waiting:
                 data = self.serial_port.read(self.serial_port.in_waiting or 1)
                 buffer.extend(data)
-                first_packet = True
                 # 在接收循环中加入
                 if first_packet and data:
                     print(f"[DBG] 首次收到数据: {data.hex().upper()}")
@@ -734,6 +734,7 @@ class PDASender:
             if len(real_data) >= 2:
                 height = (real_data[0] << 8) | real_data[1]
                 self.rx_queue.put(("actual_height", height))
+                print(f"[RX] 设置实际三点悬挂高度: {height} mm")
         elif cmd == PDA_CMD_SET_SPEED:
             if len(real_data) >= 2:
                 speed_raw = (real_data[0] << 8) | real_data[1]

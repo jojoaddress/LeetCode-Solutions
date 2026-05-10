@@ -28,36 +28,27 @@ class SubsoilerCalculator:
         self.calibration = calibration
         self.zero_offset = zero_offset
 
+    def _raw_depth(self, alpha, beta, alpha0, beta0):
+        delta_alpha = alpha - alpha0
+        delta_beta = beta - beta0
+        relative_angle = (delta_alpha - delta_beta) + self.install_angle
+        rad = math.radians(relative_angle)
+        return (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
+
     def calculate(self, alpha, beta, alpha0, beta0):
         """
         计算耕深（毫米）
         alpha, beta, alpha0, beta0 单位：度
         返回：耕深（mm）
         """
-        # 相对角度变化
-        delta_alpha = alpha - alpha0
-        delta_beta = beta - beta0
-        # 相对角度（加上安装偏移）
-        relative_angle = (delta_alpha - delta_beta) + self.install_angle
-        rad = math.radians(relative_angle)
+        raw = self._raw_depth(alpha, beta, alpha0, beta0)
+        calibrated = raw * self.calibration + self.zero_offset
+        return int(max(0, min(1000, calibrated)))
 
-        # 深松机专用公式
-        raw_depth = (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
-
-        # 校准与零点偏移
-        calibrated = raw_depth * self.calibration + self.zero_offset
-
-        # 确保非负并取整
-        return int(calibrated)
-
-    def calibrate_zero(self, alpha0_deg: float, beta0_deg: float) -> None:
+    def calibrate_zero(self, alpha0_deg, beta0_deg):
         """
-        根据给定的初始角度，自动设置 zero_offset，使该状态下计算出的深度为 0。
-        alpha0_deg, beta0_deg: 初始时机具和车身的绝对角度（度）
+        #根据给定的初始角度，自动设置 zero_offset，使该状态下计算出的深度为 0。
+        #alpha0_deg, beta0_deg: 初始时机具和车身的绝对角度（度）
         """
-        # 计算初始状态下的原始深度（未应用 zero_offset）
-        delta = (alpha0_deg - beta0_deg) + self.install_angle
-        rad = math.radians(delta)
-        raw0 = (self.L1 + self.Lt) * math.sin(rad) - self.Ht * math.cos(rad)
-        # 设置 zero_offset，使 calibrated = raw0 * calibration + zero_offset = 0
+        raw0 = self._raw_depth(alpha0_deg, beta0_deg, alpha0_deg, beta0_deg)
         self.zero_offset = -raw0 * self.calibration
