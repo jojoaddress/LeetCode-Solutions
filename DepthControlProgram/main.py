@@ -988,8 +988,12 @@ def init_logging(log_enabled, log_dir="."):
         # 更新后的日志列
         if os.path.getsize(raw_log_path) == 0:
             raw_log_file.write(
-                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,PredDepth_mm,ActualHeight_mm,TargetDepth_mm,CmdHeight_mm,DepthError_mm\n"
+                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,"
+                "PredDepth_mm,Speed_km/h,"
+                "TargetDepth_mm,CmdHeight_mm,DepthError_mm,"
+                "SoilHardness_MPa,SoilHardness_x_Depth\n"
             )
+
         if os.path.getsize(model_log_path) == 0:
             model_log_file.write(
                 "Timestamp,UpdateIdx,ActualDepth_mm,PredDepth_mm,Error_mm\n"
@@ -1008,10 +1012,11 @@ def write_raw_log_entry(
     alpha,
     depth_mm,
     pred_depth_mm,
-    actual_height_mm,
+    speed_kph,
     target_depth_mm,
     cmd_height_mm,
     depth_error_mm,
+    soil_hardness,
 ):
     if raw_log_file is None:
         return
@@ -1020,10 +1025,12 @@ def write_raw_log_entry(
     # 格式化字段（处理 None / -1 等无效值）
     err_str = f"{depth_error_mm:.1f}" if depth_error_mm is not None else "NaN"
     pred_str = f"{pred_depth_mm:.1f}" if pred_depth_mm is not None else "NaN"
-    act_h_str = (
-        f"{actual_height_mm:.1f}"
-        if actual_height_mm and actual_height_mm != -1
-        else "NaN"
+    speed_str = f"{speed_kph:.2f}" if speed_kph is not None else "NaN"
+
+    soil_str = f"{soil_hardness:.2f}" if soil_hardness is not None else "NaN"
+
+    soil_depth_str = (
+        f"{soil_hardness * depth_mm:.2f}" if soil_hardness is not None else "NaN"
     )
     target_str = f"{target_depth_mm}" if target_depth_mm is not None else -1
     cmd_str = f"{cmd_height_mm}" if cmd_height_mm is not None else -1
@@ -1031,9 +1038,10 @@ def write_raw_log_entry(
     # 写入文件
     raw_log_file.write(
         f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},"
-        f"{pred_str},{act_h_str},"
+        f"{pred_str},{speed_str},"
         f"{target_str},{cmd_str},"
-        f"{err_str}\n"
+        f"{err_str},"
+        f"{soil_str},{soil_depth_str}\n"
     )
     raw_log_file.flush()
 
@@ -1114,6 +1122,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     height_send_interval = monitor_config.get("height_send_interval", 3)
     # 从配置文件读取控制增益，若未设置则默认0.8
     kp = monitor_config.get("control_kp", 0.8)
+    min_updates_for_control = monitor_config.get("min_updates_for_control", 20)
 
     # 全局模式控制器
     mode_ctx = ModeContext(
@@ -1124,6 +1133,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
         model_save_dir=model_save_dir,
         model_save_interval=model_save_interval,
         kp=kp,
+        min_updates_for_control=min_updates_for_control,
     )
 
     initial_alpha = None
@@ -1299,9 +1309,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 pred_depth_for_log = (
                     mode_ctx.last_pred_depth if mode_ctx.last_pred_depth >= 0 else None
                 )
-                actual_height_for_log = (
-                    last_actual_height if last_actual_height != -1 else None
-                )
+
                 target_for_log = (
                     mode_ctx.target_depth_mm
                     if mode_ctx.target_depth_mm is not None
@@ -1313,17 +1321,17 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     if pred_depth_for_log is not None
                     else None
                 )
-
                 write_raw_log_entry(
                     raw_log_file,
                     current_beta,
                     current_alpha,
                     depth_mm,
                     pred_depth_for_log,
-                    actual_height_for_log,
+                    current_speed_kph,
                     target_for_log,
                     cmd_for_log,
                     depth_error,
+                    soil_hardness,
                 )
             else:
                 if not initialized:
@@ -1358,6 +1366,7 @@ class ModeContext:
         model_save_dir="./models",
         model_save_interval=10,
         kp=0.8,
+        min_updates_for_control=20,
     ):
         self.mode = OperationMode.TRAINING
         self.target_depth_mm = None
@@ -1370,6 +1379,7 @@ class ModeContext:
         self.model_save_interval = model_save_interval
         self.update_counter = 0
         self.kp = kp
+        self.min_updates_for_control = min_updates_for_control
         self.last_pred_depth = -1.0
 
     def is_control(self):
@@ -1377,6 +1387,11 @@ class ModeContext:
 
     def enter_control(self, depth_mm, enable):
         if enable:
+            if self.update_counter < self.min_updates_for_control:
+                print(
+                    f"[警告] 模型训练不足 ({self.update_counter}/{self.min_updates_for_control})，拒绝进入控制模式"
+                )
+                return
             self.mode = OperationMode.CONTROL
             self.target_depth_mm = depth_mm
             print(f"[模式] 进入控制模式，目标耕深={depth_mm}mm")
