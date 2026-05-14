@@ -1255,16 +1255,20 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     last_actual_height = val
                     print(f"[记录] 实际悬挂高度: {val} mm")
                     if can_calculate and not mode_ctx.is_control():
-                        # 立即训练
-                        mode_ctx.try_learn_with_height(
+                        result = mode_ctx.learn_from_actual_height(
                             last_actual_height,
                             depth_mm,
-                            soil_hardness,
-                            current_speed_kph,
-                            slope_x,
-                            slope_y,
-                            model_log_file,
+                            (soil_hardness, current_speed_kph, slope_x, slope_y),
                         )
+                        if result is not None and model_log_file is not None:
+                            pred_before, actual_d, err = result
+                            write_model_log_entry(
+                                model_log_file,
+                                mode_ctx.update_counter,
+                                actual_d,
+                                pred_before,
+                                err,
+                            )
                         last_actual_height = -1
 
                 elif typ == "req_once":
@@ -1323,10 +1327,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 )
             else:
                 if not initialized:
-                    print("等待零点校准指令 (0x13)...")
-                else:
-                    print("等待传感器数据...")
-
+                    print("等待零点校准指令...")
             time.sleep(sleep_interval)
 
     finally:
@@ -1360,7 +1361,7 @@ class ModeContext:
     ):
         self.mode = OperationMode.TRAINING
         self.target_depth_mm = None
-        self.height_model = height_model  # 正向深度模型容器
+        self.height_model = height_model
         self.tool_type = tool_type
         self.pda_sender = pda_sender
         self.height_send_interval = height_send_interval
@@ -1369,7 +1370,7 @@ class ModeContext:
         self.model_save_interval = model_save_interval
         self.update_counter = 0
         self.kp = kp
-        self.last_pred_depth = -1.0  # 最近一次模型预测深度（用于日志）
+        self.last_pred_depth = -1.0
 
     def is_control(self):
         return self.mode == OperationMode.CONTROL
@@ -1385,9 +1386,7 @@ class ModeContext:
             print("[模式] 返回训练模式")
 
     def learn_from_actual_height(self, actual_height_mm, actual_depth_mm, env_features):
-        """训练模式：以实际高度为输入，几何深度为真值，更新正向模型。
-        返回 (pred_before, actual_depth_mm, error) 供外部记录日志。
-        """
+        """训练模式下，用实际悬挂高度更新正向模型，返回(预测前深度, 真实深度, 误差)"""
         if self.is_control():
             return None
 
@@ -1420,14 +1419,10 @@ class ModeContext:
             except Exception as e:
                 print(f"保存模型失败: {e}")
 
-        # 返回关键数据，不再直接写日志
         return pred_before, actual_depth_mm, error
 
     def try_issue_height_command(self, env_features, current_time):
-        """
-        控制模式：解析逆映射 + 误差闭环，返回下发的指令高度（mm）或 None。
-        env_features = (current_depth_mm, hardness, speed, slope_x, slope_y)
-        """
+        """控制模式：逆映射 + 误差闭环，返回指令高度(mm) 或 None"""
         if not self.is_control():
             return None
         if current_time - self.last_cmd_time < self.height_send_interval:
@@ -1435,12 +1430,10 @@ class ModeContext:
 
         current_depth_mm, hardness, speed, slope_x, slope_y = env_features
 
-        # 1. 逆映射计算基础高度
         base_height = self.height_model.inverse_predict(
             self.tool_type, self.target_depth_mm, hardness, speed, slope_x, slope_y
         )
 
-        # 2. 闭环修正
         error = self.target_depth_mm - current_depth_mm
         model = self.height_model.get_model(self.tool_type)
         denom = model.theta[1] + model.theta[6] * hardness
@@ -1453,7 +1446,7 @@ class ModeContext:
         self.pda_sender.send_height_data(cmd_height)
         self.last_cmd_time = current_time
 
-        # 3. 预测此指令高度对应的深度（用于日志）
+        # 预测指令高度对应的深度，用于日志
         pred_depth = self.height_model.predict(
             self.tool_type, cmd_height, hardness, speed, slope_x, slope_y
         )
@@ -1463,31 +1456,7 @@ class ModeContext:
             f"[控制] 下发悬挂高度: {cmd_height}mm (目标深度: {self.target_depth_mm}mm, "
             f"当前深度: {current_depth_mm}mm, 误差: {error}mm)"
         )
-        return
-
-    def try_learn_with_height(
-        self,
-        actual_height_mm,
-        actual_depth_mm,
-        hardness,
-        speed,
-        slope_x,
-        slope_y,
-        model_log_file=None,
-    ):
-        """如果处于训练模式，则用给定高度和深度执行一次模型更新"""
-        if not self.is_control():
-            env_feats = (hardness, speed, slope_x, slope_y)
-            result = self.learn_from_actual_height(
-                actual_height_mm, actual_depth_mm, env_feats
-            )
-            if result is not None and model_log_file is not None:
-                pred_before, actual_d, err = result
-                write_model_log_entry(
-                    model_log_file, self.update_counter, actual_d, pred_before, err
-                )
-            return result
-        return None
+        return cmd_height  # 修正：必须返回高度
 
 
 if __name__ == "__main__":
