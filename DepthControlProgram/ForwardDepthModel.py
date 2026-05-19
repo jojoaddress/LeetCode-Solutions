@@ -27,6 +27,8 @@ class ForwardDepthModel:
         self.theta = np.zeros(self.dim)
         self.P = np.eye(self.dim) * delta
 
+        self.training_count = 0  # 累计训练次数
+
     def _construct_features(
         self,
         height_mm: float,
@@ -89,6 +91,8 @@ class ForwardDepthModel:
         I = np.eye(self.dim)
         self.P = (I - np.outer(k, x)) @ self.P / self.lambda_
         self.P += self.ridge_penalty * np.eye(self.dim)
+
+        self.training_count += 1  # 每次更新递增
 
     def inverse_predict(
         self,
@@ -213,10 +217,11 @@ class MultiToolHeightModel:
     def save_models(self, save_dir="."):
         import os
 
-        np.savez(
-            os.path.join(save_dir, "height_models.npz"),
-            **{f"{t}_theta": m.get_params() for t, m in self.models.items()},
-        )
+        save_dict = {}
+        for t, m in self.models.items():
+            save_dict[f"{t}_theta"] = m.get_params()
+            save_dict[f"{t}_count"] = m.training_count  # 保存计数器
+        np.savez(os.path.join(save_dir, "height_models.npz"), **save_dict)
 
     def load_models(self, filepath):
         data = np.load(filepath)
@@ -226,3 +231,7 @@ class MultiToolHeightModel:
                 theta = data[key]
                 model = self.get_model(tool)
                 model.set_params(theta)
+                # 尝试恢复对应的训练次数（不存在则保持0）
+                count_key = f"{tool}_count"
+                if count_key in data:
+                    model.training_count = int(data[count_key])
