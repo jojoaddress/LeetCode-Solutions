@@ -1277,25 +1277,26 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     print("停止连续上报")
 
                 elif typ == "actual_height":
-                    last_actual_height = val
-                    print(f"[记录] 实际悬挂高度: {val} mm")
-                    if can_calculate and not mode_ctx.is_control():
-                        result = mode_ctx.learn_from_actual_height(
-                            last_actual_height,
-                            depth_mm,
-                            (soil_hardness, current_speed_kph, slope_x, slope_y),
-                        )
-                        if result is not None and model_log_file is not None:
-                            pred_before, actual_d, err = result
-                            model = mode_ctx.height_model.get_model(tool_config["type"])
-                            write_model_log_entry(
-                                model_log_file,
-                                model.training_count,
-                                actual_d,
-                                pred_before,
-                                err,
+                    if not mode_ctx.is_control():
+                        last_actual_height = val
+                        print(f"[记录] 实际悬挂高度: {val} mm")
+                        if can_calculate:
+                            result = mode_ctx.learn_from_actual_height(
+                                last_actual_height, depth_mm, env_feats
                             )
-                        last_actual_height = -1
+                            if result is not None and model_log_file is not None:
+                                pred_before, actual_d, err = result
+                                model = mode_ctx.height_model.get_model(
+                                    tool_config["type"]
+                                )
+                                write_model_log_entry(
+                                    model_log_file,
+                                    model.training_count,
+                                    actual_d,
+                                    pred_before,
+                                    err,
+                                )
+                            last_actual_height = -1
 
                 elif typ == "req_once":
                     if can_calculate:
