@@ -1160,7 +1160,9 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     try:
         while True:
             current_alpha = None
-            current_beta = None
+            # current_beta = None
+            current_slope_x = None
+            current_slope_y = None
 
             for device_name, data in shared_data.items():
                 if (
@@ -1176,7 +1178,9 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     if device_name == impl_name:
                         current_alpha = ang_y
                     elif device_name == veh_name:
-                        current_beta = ang_y
+                        # current_beta = ang_y
+                        current_slope_x = ang_x  # 车辆横滚角 -> 横向坡度
+                        current_slope_y = ang_y  # 车辆俯仰角 -> 纵向坡度
 
             current_time = time.time()
 
@@ -1184,7 +1188,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
             if (
                 not initial_status_sent
                 and current_alpha is not None
-                and current_beta is not None
+                and current_slope_y is not None
             ):
                 pda_sender.send_tool_type(pda_sender.current_tool_type)
                 time.sleep(0.1)
@@ -1194,17 +1198,19 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
             # 深度计算（仅当初始化）
             can_calculate = (
-                initialized and current_alpha is not None and current_beta is not None
+                initialized
+                and current_alpha is not None
+                and current_slope_y is not None
             )
 
             if can_calculate:
                 depth_mm = calculator.calculate(
                     alpha=current_alpha,
-                    beta=current_beta,
+                    beta=current_slope_y,
                     alpha0=initial_alpha,
                     beta0=initial_beta,
                 )
-                slope_x, slope_y = current_beta, current_alpha
+                slope_x, slope_y = current_slope_x, current_slope_y
 
                 # 稳定性计算
                 depth_history.append((current_time, depth_mm))
@@ -1239,11 +1245,11 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
                 # 指令处理映射表
                 if typ == "zero_calibrate":
-                    if current_alpha is not None and current_beta is not None:
+                    if current_alpha is not None and current_slope_y is not None:
                         initial_alpha = current_alpha
-                        initial_beta = current_beta
+                        initial_beta = current_slope_y
                         initialized = True
-                        calculator.calibrate_zero(current_alpha, current_beta)
+                        calculator.calibrate_zero(current_alpha, current_slope_y)
                         depth_history.clear()
                         print(
                             f"归零完成 α0={initial_alpha:.2f}° β0={initial_beta:.2f}°"
@@ -1333,7 +1339,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 )
                 write_raw_log_entry(
                     raw_log_file,
-                    current_beta,
+                    current_slope_y,
                     current_alpha,
                     depth_mm,
                     pred_depth_for_log,
