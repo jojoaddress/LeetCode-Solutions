@@ -1083,7 +1083,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
     impl_name = device_names["implement"]
     veh_name = device_names["vehicle"]
-
     calculator = create_calculator(tool_config["type"], tool_config["params"])
 
     # 正向深度模型
@@ -1093,9 +1092,9 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     height_model = MultiToolHeightModel(rls_forget, rls_delta, rls_ridge)
     model_save_dir = monitor_config.get("model_save_dir", "./models")
     model_save_interval = monitor_config.get("model_save_interval", 10)
-
     os.makedirs(model_save_dir, exist_ok=True)
     model_file = os.path.join(model_save_dir, "height_models.npz")
+
     if os.path.exists(model_file):
         try:
             height_model.load_models(model_file)
@@ -1148,10 +1147,20 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     current_speed_kph = default_speed
 
     raw_log_file, model_log_file = init_logging(log_enabled, log_dir)
-    last_actual_height = -1  # 最近一次PDA下发的实际悬挂高度
-    last_cmd_height = -1  # 最近一次控制模式发送的指令高度
+    last_actual_height = -1  # 待训练的悬挂高度
+    last_cmd_height = -1  # 最后一次发送的控制高度
 
     depth_history = []
+
+    # 每轮循环中会重新计算的变量，先声明默认值
+    current_alpha = None
+    current_slope_x = None
+    current_slope_y = None
+    depth_mm = None
+    slope_x = None
+    slope_y = None
+    stability = None
+    can_calculate = False
 
     def send_depth_stability_report(depth_mm, stability):
         pda_sender.send_depth_data(depth_mm)
@@ -1160,7 +1169,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     try:
         while True:
             current_alpha = None
-            # current_beta = None
             current_slope_x = None
             current_slope_y = None
 
@@ -1178,7 +1186,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     if device_name == impl_name:
                         current_alpha = ang_y
                     elif device_name == veh_name:
-                        # current_beta = ang_y
                         current_slope_x = ang_x  # 车辆横滚角 -> 横向坡度
                         current_slope_y = ang_y  # 车辆俯仰角 -> 纵向坡度
 
@@ -1195,46 +1202,6 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 pda_sender.send_sensor_status(pda_sender.current_sensor_status)
                 initial_status_sent = True
                 print("已发送初始状态（机具类型 + 传感器正常）")
-
-            # 深度计算（仅当初始化）
-            can_calculate = (
-                initialized
-                and current_alpha is not None
-                and current_slope_y is not None
-            )
-
-            if can_calculate:
-                depth_mm = calculator.calculate(
-                    alpha=current_alpha,
-                    beta=current_slope_y,
-                    alpha0=initial_alpha,
-                    beta0=initial_beta,
-                )
-                slope_x, slope_y = current_slope_x, current_slope_y
-
-                # 稳定性计算
-                depth_history.append((current_time, depth_mm))
-                cutoff = current_time - window_seconds
-                depth_history = [(t, d) for t, d in depth_history if t >= cutoff]
-                stability = compute_stability(depth_history, min_samples)
-
-                # 触发待处理的高度训练（若有）
-                if last_actual_height != -1 and not mode_ctx.is_control():
-                    env_feats = (soil_hardness, current_speed_kph, slope_x, slope_y)
-                    result = mode_ctx.learn_from_actual_height(
-                        last_actual_height, depth_mm, env_feats
-                    )
-                    if result is not None and model_log_file is not None:
-                        pred_before, actual_d, err = result
-                        model = mode_ctx.height_model.get_model(tool_config["type"])
-                        write_model_log_entry(
-                            model_log_file,
-                            model.training_count,
-                            actual_d,
-                            pred_before,
-                            err,
-                        )
-                    last_actual_height = -1  # 已处理
 
             # 统一指令处理
             while True:
@@ -1302,6 +1269,42 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     if can_calculate:
                         send_depth_stability_report(depth_mm, stability)
                         print("响应单次耕深请求")
+
+            # 深度计算（仅当初始化）
+            can_calculate = (
+                initialized
+                and current_alpha is not None
+                and current_slope_y is not None
+            )
+
+            if can_calculate:
+                depth_mm = calculator.calculate(
+                    alpha=current_alpha,
+                    beta=current_slope_y,
+                    alpha0=initial_alpha,
+                    beta0=initial_beta,
+                )
+                slope_x, slope_y = current_slope_x, current_slope_y
+
+                # 稳定性计算
+                depth_history.append((current_time, depth_mm))
+                cutoff = current_time - window_seconds
+                depth_history = [(t, d) for t, d in depth_history if t >= cutoff]
+                stability = compute_stability(depth_history, min_samples)
+
+            # 模型训练（处理缓存的真实悬挂高度）
+            if can_calculate and last_actual_height != -1 and not mode_ctx.is_control():
+                env_feats = (soil_hardness, current_speed_kph, slope_x, slope_y)
+                result = mode_ctx.learn_from_actual_height(
+                    last_actual_height, depth_mm, env_feats
+                )
+                if result is not None and model_log_file is not None:
+                    pred_before, actual_d, err = result
+                    model = mode_ctx.height_model.get_model(tool_config["type"])
+                    write_model_log_entry(
+                        model_log_file, model.training_count, actual_d, pred_before, err
+                    )
+                last_actual_height = -1  # 已处理
 
             # 控制模式指令下发
             if can_calculate:
