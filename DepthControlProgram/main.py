@@ -30,8 +30,10 @@ PDA_START_BYTE = 0xA5  # PDA起始标志
 PDA_END_BYTE = 0xAA  # PDA结束标志
 
 # PDA指令定义
-PDA_CMD_REQ_DEPTH_ONCE = 0x10  # 请求单次耕深数据（响应一次耕深+稳定性+高度）
-PDA_CMD_START_STREAM = 0x11  # 开始连续上报，未带数据则使用默认间隔1秒
+PDA_CMD_REQ_DEPTH_ONCE = 0x10  # 请求单次耕深数据（响应一次耕深+稳定性）
+PDA_CMD_START_STREAM = (
+    0x11  # 开始连续上报，未带数据则使用默认间隔1秒（1字节），范围[0.1,10]秒
+)
 PDA_CMD_STOP_STREAM = 0x12  # 停止连续上报
 PDA_CMD_ZERO_CALIBRATE = 0x13  # 零点校准（铲尖刚好触地时下发）
 
@@ -39,7 +41,7 @@ PDA_CMD_TOOL_TYPE = 0x21  # 机具类别
 PDA_CMD_SENSOR_STATUS = 0x22  # 传感器状态
 PDA_CMD_DEPTH = 0x23  # 耕深
 PDA_CMD_DEPTH_STABILITY = 0x24  # 当前耕深和深度稳定性
-PDA_CMD_SUSPENSION_HEIGHT = 0x25  # 三点悬挂高度
+PDA_CMD_SUSPENSION_HEIGHT = 0x25  # 上发三点悬挂高度（2字节，mm）
 
 PDA_CMD_SET_TARGET_DEPTH = 0x30  # 设置目标耕深（3字节，mm）
 PDA_CMD_SET_ACTUAL_HEIGHT = 0x31  # 下发实际三点悬挂高度（2字节，mm）
@@ -1158,7 +1160,9 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     try:
         while True:
             current_alpha = None
-            current_beta = None
+            # current_beta = None
+            current_slope_x = None
+            current_slope_y = None
 
             for device_name, data in shared_data.items():
                 if (
@@ -1168,11 +1172,15 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     and "AngY" in data[0x50]
                     and "AngZ" in data[0x50]
                 ):
-                    ang_y = data[0x50]["AngY"]
+                    ang_x = data[0x50].get("AngX")
+                    ang_y = data[0x50].get("AngY")
+                    ang_z = data[0x50].get("AngZ")
                     if device_name == impl_name:
                         current_alpha = ang_y
                     elif device_name == veh_name:
-                        current_beta = ang_y
+                        # current_beta = ang_y
+                        current_slope_x = ang_x  # 车辆横滚角 -> 横向坡度
+                        current_slope_y = ang_y  # 车辆俯仰角 -> 纵向坡度
 
             current_time = time.time()
 
@@ -1180,7 +1188,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
             if (
                 not initial_status_sent
                 and current_alpha is not None
-                and current_beta is not None
+                and current_slope_y is not None
             ):
                 pda_sender.send_tool_type(pda_sender.current_tool_type)
                 time.sleep(0.1)
@@ -1190,17 +1198,19 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
             # 深度计算（仅当初始化）
             can_calculate = (
-                initialized and current_alpha is not None and current_beta is not None
+                initialized
+                and current_alpha is not None
+                and current_slope_y is not None
             )
 
             if can_calculate:
                 depth_mm = calculator.calculate(
                     alpha=current_alpha,
-                    beta=current_beta,
+                    beta=current_slope_y,
                     alpha0=initial_alpha,
                     beta0=initial_beta,
                 )
-                slope_x, slope_y = current_beta, current_alpha
+                slope_x, slope_y = current_slope_x, current_slope_y
 
                 # 稳定性计算
                 depth_history.append((current_time, depth_mm))
@@ -1209,16 +1219,21 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 stability = compute_stability(depth_history, min_samples)
 
                 # 触发待处理的高度训练（若有）
-                if last_actual_height != -1:
-                    mode_ctx.try_learn_with_height(
-                        last_actual_height,
-                        depth_mm,
-                        soil_hardness,
-                        current_speed_kph,
-                        slope_x,
-                        slope_y,
-                        model_log_file,
+                if last_actual_height != -1 and not mode_ctx.is_control():
+                    env_feats = (soil_hardness, current_speed_kph, slope_x, slope_y)
+                    result = mode_ctx.learn_from_actual_height(
+                        last_actual_height, depth_mm, env_feats
                     )
+                    if result is not None and model_log_file is not None:
+                        pred_before, actual_d, err = result
+                        model = mode_ctx.height_model.get_model(tool_config["type"])
+                        write_model_log_entry(
+                            model_log_file,
+                            model.training_count,
+                            actual_d,
+                            pred_before,
+                            err,
+                        )
                     last_actual_height = -1  # 已处理
 
             # 统一指令处理
@@ -1230,11 +1245,11 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
                 # 指令处理映射表
                 if typ == "zero_calibrate":
-                    if current_alpha is not None and current_beta is not None:
+                    if current_alpha is not None and current_slope_y is not None:
                         initial_alpha = current_alpha
-                        initial_beta = current_beta
+                        initial_beta = current_slope_y
                         initialized = True
-                        calculator.calibrate_zero(current_alpha, current_beta)
+                        calculator.calibrate_zero(current_alpha, current_slope_y)
                         depth_history.clear()
                         print(
                             f"归零完成 α0={initial_alpha:.2f}° β0={initial_beta:.2f}°"
@@ -1262,24 +1277,26 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     print("停止连续上报")
 
                 elif typ == "actual_height":
-                    last_actual_height = val
-                    print(f"[记录] 实际悬挂高度: {val} mm")
-                    if can_calculate and not mode_ctx.is_control():
-                        result = mode_ctx.learn_from_actual_height(
-                            last_actual_height,
-                            depth_mm,
-                            (soil_hardness, current_speed_kph, slope_x, slope_y),
-                        )
-                        if result is not None and model_log_file is not None:
-                            pred_before, actual_d, err = result
-                            write_model_log_entry(
-                                model_log_file,
-                                mode_ctx.update_counter,
-                                actual_d,
-                                pred_before,
-                                err,
+                    if not mode_ctx.is_control():
+                        last_actual_height = val
+                        print(f"[记录] 实际悬挂高度: {val} mm")
+                        if can_calculate:
+                            result = mode_ctx.learn_from_actual_height(
+                                last_actual_height, depth_mm, env_feats
                             )
-                        last_actual_height = -1
+                            if result is not None and model_log_file is not None:
+                                pred_before, actual_d, err = result
+                                model = mode_ctx.height_model.get_model(
+                                    tool_config["type"]
+                                )
+                                write_model_log_entry(
+                                    model_log_file,
+                                    model.training_count,
+                                    actual_d,
+                                    pred_before,
+                                    err,
+                                )
+                            last_actual_height = -1
 
                 elif typ == "req_once":
                     if can_calculate:
@@ -1323,7 +1340,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 )
                 write_raw_log_entry(
                     raw_log_file,
-                    current_beta,
+                    current_slope_y,
                     current_alpha,
                     depth_mm,
                     pred_depth_for_log,
@@ -1377,19 +1394,19 @@ class ModeContext:
         self.last_cmd_time = 0
         self.model_save_dir = model_save_dir
         self.model_save_interval = model_save_interval
-        self.update_counter = 0
         self.kp = kp
-        self.min_updates_for_control = min_updates_for_control
         self.last_pred_depth = -1.0
+        self.min_updates_for_control = min_updates_for_control
 
     def is_control(self):
         return self.mode == OperationMode.CONTROL
 
     def enter_control(self, depth_mm, enable):
         if enable:
-            if self.update_counter < self.min_updates_for_control:
+            model = self.height_model.get_model(self.tool_type)
+            if model.training_count < self.min_updates_for_control:
                 print(
-                    f"[警告] 模型训练不足 ({self.update_counter}/{self.min_updates_for_control})，拒绝进入控制模式"
+                    f"[警告] 模型训练不足 ({model.training_count}/{self.min_updates_for_control})，拒绝进入控制模式"
                 )
                 return
             self.mode = OperationMode.CONTROL
@@ -1401,12 +1418,9 @@ class ModeContext:
             print("[模式] 返回训练模式")
 
     def learn_from_actual_height(self, actual_height_mm, actual_depth_mm, env_features):
-        """训练模式下，用实际悬挂高度更新正向模型，返回(预测前深度, 真实深度, 误差)"""
         if self.is_control():
             return None
-
         hardness, speed, slope_x, slope_y = env_features
-
         pred_before = self.height_model.predict(
             self.tool_type, actual_height_mm, hardness, speed, slope_x, slope_y
         )
@@ -1420,20 +1434,20 @@ class ModeContext:
             slope_y,
             actual_depth_mm,
         )
-        self.update_counter += 1
+        # 更新计数器现在在模型内部自动完成
+        model = self.height_model.get_model(self.tool_type)
         self.last_pred_depth = pred_before
 
         print(
-            f"[训练] 更新#{self.update_counter}: 高度={actual_height_mm}mm, "
+            f"[训练] 更新#{model.training_count}: 高度={actual_height_mm}mm, "
             f"几何深度={actual_depth_mm}mm, 预测深度={pred_before:.1f}mm, 误差={error:.1f}mm"
         )
 
-        if self.update_counter % self.model_save_interval == 0:
+        if model.training_count % self.model_save_interval == 0:
             try:
                 self.height_model.save_models(self.model_save_dir)
             except Exception as e:
                 print(f"保存模型失败: {e}")
-
         return pred_before, actual_depth_mm, error
 
     def try_issue_height_command(self, env_features, current_time):
@@ -1468,7 +1482,7 @@ class ModeContext:
         self.last_pred_depth = pred_depth
 
         print(
-            f"[控制] 下发悬挂高度: {cmd_height}mm (目标深度: {self.target_depth_mm}mm, "
+            f"[控制] 上发悬挂高度: {cmd_height}mm (目标深度: {self.target_depth_mm}mm, "
             f"当前深度: {current_depth_mm}mm, 误差: {error}mm)"
         )
         return cmd_height  # 修正：必须返回高度
