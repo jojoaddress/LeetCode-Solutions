@@ -29,6 +29,7 @@
         }
     },
     "monitor": {
+        "sensor_tool_status_interval": 5,
         "soil_hardness_mpa": 2.5,
         "default_speed_kph": 6.0,
         "height_send_interval": 3,

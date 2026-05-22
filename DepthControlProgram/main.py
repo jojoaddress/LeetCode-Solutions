@@ -1116,6 +1116,9 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     window_seconds = monitor_config.get("window_seconds", 10.0)
     min_samples = monitor_config.get("min_samples", 3)
     sleep_interval = monitor_config.get("sleep_interval", 1.0)
+    sensor_tool_status_interval = monitor_config.get(
+        "sensor_tool_status_interval", 0
+    )  # 秒，0表示不启用定时发送
     log_enabled = monitor_config.get("log_enabled", True)
     log_dir = monitor_config.get("log_dir", "./logs")
     soil_hardness = monitor_config.get("soil_hardness_mpa", 2.0)
@@ -1149,6 +1152,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     raw_log_file, model_log_file = init_logging(log_enabled, log_dir)
     last_actual_height = -1  # 待训练的悬挂高度
     last_cmd_height = -1  # 最后一次发送的控制高度
+    last_sensor_status_time = 0  # 上次发送传感器状态的时间戳
 
     depth_history = []
 
@@ -1201,6 +1205,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 time.sleep(0.1)
                 pda_sender.send_sensor_status(pda_sender.current_sensor_status)
                 initial_status_sent = True
+                last_sensor_status_time = current_time  # 新增：记录初始发送时间
                 print("已发送初始状态（机具类型 + 传感器正常）")
 
             # 统一指令处理
@@ -1245,7 +1250,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
 
                 elif typ == "actual_height":
                     if not mode_ctx.is_control():
-                        last_actual_height = val   # 仅记录，训练稍后统一处理
+                        last_actual_height = val  # 仅记录，训练稍后统一处理
                         print(f"[记录] 实际悬挂高度: {val} mm")
 
                 elif typ == "req_once":
@@ -1306,6 +1311,19 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
             ):
                 send_depth_stability_report(depth_mm, stability)
                 last_stream_time = current_time
+
+            # 定时发送传感器状态和机具类型
+            if sensor_tool_status_interval > 0:
+                if (
+                    current_time - last_sensor_status_time
+                    >= sensor_tool_status_interval
+                ):
+                    pda_sender.send_tool_type(pda_sender.current_tool_type)
+                    time.sleep(0.1)
+                    pda_sender.send_sensor_status(pda_sender.current_sensor_status)
+                    last_sensor_status_time = current_time
+                    print(f"[定时] 发送机具类型: {pda_sender.current_tool_type}")
+                    print(f"[定时] 发送传感器状态: {pda_sender.current_sensor_status}")
 
             # 写入原始日志
             if can_calculate:
