@@ -1,19 +1,19 @@
 {
     "devices": {
         "implement": {
-            "name": "测试设备1",
-            "port": "/dev/ttyUSB0",
+            "name": "机具",
+            "port": "/dev/ttyUSB_IMPLEMENT",
             "baudrate": 9600,
             "address": 80
         },
         "vehicle": {
-            "name": "测试设备2",
-            "port": "/dev/ttyUSB2",
+            "name": "机身",
+            "port": "/dev/ttyUSB_VEHICLE",
             "baudrate": 9600,
             "address": 80
         },
         "pda": {
-            "port": "/dev/ttyUSB1",
+            "port": "/dev/ttyUSB_PDA",
             "baudrate": 9600
         }
     },
