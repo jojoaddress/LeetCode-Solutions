@@ -20,9 +20,9 @@
     "tool": {
         "type": "subsoiler",
         "params": {
-            "L1": 500.0,
-            "Lt": 300.0,
-            "Ht": 150.0,
+            "L1": 1100.0,
+            "Lt": 800.0,
+            "Ht": 900.0,
             "install_angle": 0.0,
             "calibration": 1.0,
             "zero_offset": 0.0

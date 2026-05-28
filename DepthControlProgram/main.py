@@ -41,10 +41,10 @@ PDA_CMD_TOOL_TYPE = 0x21  # 机具类别
 PDA_CMD_SENSOR_STATUS = 0x22  # 传感器状态
 PDA_CMD_DEPTH = 0x23  # 耕深
 PDA_CMD_DEPTH_STABILITY = 0x24  # 当前耕深和深度稳定性
-PDA_CMD_SUSPENSION_HEIGHT = 0x25  # 上发三点悬挂高度（2字节，mm）
+PDA_CMD_SUSPENSION_HEIGHT = 0x25  # 上发三点悬挂高度（2字节，%）
 
 PDA_CMD_SET_TARGET_DEPTH = 0x30  # 设置目标耕深（3字节，mm）
-PDA_CMD_SET_ACTUAL_HEIGHT = 0x31  # 下发实际三点悬挂高度（2字节，mm）
+PDA_CMD_SET_ACTUAL_HEIGHT = 0x31  # 下发实际三点悬挂高度（2字节，%）
 PDA_CMD_SET_SPEED = 0x32  # 下发车辆作业速度（2字节，0.01 km/h，即放大100倍）
 
 
@@ -734,9 +734,10 @@ class PDASender:
 
         elif cmd == PDA_CMD_SET_ACTUAL_HEIGHT:
             if len(real_data) >= 2:
-                height = (real_data[0] << 8) | real_data[1]
-                self.rx_queue.put(("actual_height", height))
-                print(f"[RX] 设置实际三点悬挂高度: {height} mm")
+                percent = real_data[1]  # 低字节为百分比
+                percent = max(0, min(100, percent))
+                self.rx_queue.put(("actual_height", percent))
+                print(f"[RX] 设置实际悬挂高度: {percent}%")
         elif cmd == PDA_CMD_SET_SPEED:
             if len(real_data) >= 2:
                 speed_raw = (real_data[0] << 8) | real_data[1]
@@ -853,15 +854,11 @@ class PDASender:
         pda_data = [PDA_CMD_DEPTH_STABILITY] + depth_bytes + [stability_percent]
         return self.send_complete_packet(self.build_complete_packet(pda_data))
 
-    def send_height_data(self, height_mm):
-        """
-        发送三点悬挂高度数据（指令 0x25）
-        :param height_mm: 高度（毫米），整数 0~65535
-        """
-        height_mm = int(height_mm)
-        height_mm = max(0, min(65535, height_mm))
-        height_bytes = [(height_mm >> 8) & 0xFF, height_mm & 0xFF]
-        pda_data = [PDA_CMD_SUSPENSION_HEIGHT] + height_bytes
+    def send_height_data(self, height_percent):
+        """发送三点悬挂高度百分比 (0-100)"""
+        height_percent = max(0, min(100, int(height_percent)))
+        # 协议：高字节0，低字节百分比
+        pda_data = [PDA_CMD_SUSPENSION_HEIGHT, 0, height_percent]
         return self.send_complete_packet(self.build_complete_packet(pda_data))
 
     def print_packet_details(self, packet, command, data_bytes):
@@ -992,7 +989,7 @@ def init_logging(log_enabled, log_dir="."):
             raw_log_file.write(
                 "Timestamp,Beta(deg),Alpha(deg),Depth_mm,"
                 "PredDepth_mm,Speed_km/h,"
-                "TargetDepth_mm,CmdHeight_mm,DepthError_mm,"
+                "TargetDepth_mm,CmdHeight_percent,DepthError_mm,"
                 "SoilHardness_MPa,SoilHardness_x_Depth\n"
             )
 
@@ -1016,7 +1013,7 @@ def write_raw_log_entry(
     pred_depth_mm,
     speed_kph,
     target_depth_mm,
-    cmd_height_mm,
+    cmd_height_percent,
     depth_error_mm,
     soil_hardness,
 ):
@@ -1035,7 +1032,7 @@ def write_raw_log_entry(
         f"{soil_hardness * depth_mm:.2f}" if soil_hardness is not None else "NaN"
     )
     target_str = f"{target_depth_mm}" if target_depth_mm is not None else -1
-    cmd_str = f"{cmd_height_mm}" if cmd_height_mm is not None else -1
+    cmd_str = f"{cmd_height_percent:.1f}" if cmd_height_percent is not None else "NaN"
 
     # 写入文件
     raw_log_file.write(
@@ -1251,7 +1248,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                 elif typ == "actual_height":
                     if not mode_ctx.is_control():
                         last_actual_height = val  # 仅记录，训练稍后统一处理
-                        print(f"[记录] 实际悬挂高度: {val} mm")
+                        print(f"[记录] 实际悬挂高度: {val} %")
 
                 elif typ == "req_once":
                     if can_calculate:
@@ -1421,17 +1418,19 @@ class ModeContext:
             self.target_depth_mm = None
             print("[模式] 返回训练模式")
 
-    def learn_from_actual_height(self, actual_height_mm, actual_depth_mm, env_features):
+    def learn_from_actual_height(
+        self, actual_height_percent, actual_depth_mm, env_features
+    ):
         if self.is_control():
             return None
         hardness, speed, slope_x, slope_y = env_features
         pred_before = self.height_model.predict(
-            self.tool_type, actual_height_mm, hardness, speed, slope_x, slope_y
+            self.tool_type, actual_height_percent, hardness, speed, slope_x, slope_y
         )
         error = actual_depth_mm - pred_before
         self.height_model.update(
             self.tool_type,
-            actual_height_mm,
+            actual_height_percent,
             hardness,
             speed,
             slope_x,
@@ -1443,7 +1442,7 @@ class ModeContext:
         self.last_pred_depth = pred_before
 
         print(
-            f"[训练] 更新#{model.training_count}: 高度={actual_height_mm}mm, "
+            f"[训练] 更新#{model.training_count}: 高度={actual_height_percent}%, "
             f"几何深度={actual_depth_mm}mm, 预测深度={pred_before:.1f}mm, 误差={error:.1f}mm"
         )
 
@@ -1455,7 +1454,7 @@ class ModeContext:
         return pred_before, actual_depth_mm, error
 
     def try_issue_height_command(self, env_features, current_time):
-        """控制模式：逆映射 + 误差闭环，返回指令高度(mm) 或 None"""
+        """控制模式：逆映射 + 误差闭环，返回指令高度(%) 或 None"""
         if not self.is_control():
             return None
         if current_time - self.last_cmd_time < self.height_send_interval:
@@ -1463,33 +1462,34 @@ class ModeContext:
 
         current_depth_mm, hardness, speed, slope_x, slope_y = env_features
 
-        base_height = self.height_model.inverse_predict(
+        base_percent = self.height_model.inverse_predict(
             self.tool_type, self.target_depth_mm, hardness, speed, slope_x, slope_y
         )
 
+        # 误差闭环，分母为深度对高度的导数
         error = self.target_depth_mm - current_depth_mm
         model = self.height_model.get_model(self.tool_type)
-        denom = model.theta[1] + model.theta[6] * hardness
-        if abs(denom) < 1e-4:
-            adjusted_h = base_height
+        denom = model.theta[1] + model.theta[6] * hardness  # ∂depth/∂(percent)
+        if abs(denom) > 1e-4:
+            adjusted_percent = base_percent + self.kp * error / denom
         else:
-            adjusted_h = base_height + self.kp * error / denom
+            adjusted_percent = base_percent
 
-        cmd_height = max(50, min(600, int(adjusted_h)))
-        self.pda_sender.send_height_data(cmd_height)
+        cmd_percent = max(0, min(100, int(adjusted_percent)))
+        self.pda_sender.send_height_data(cmd_percent)
         self.last_cmd_time = current_time
 
-        # 预测指令高度对应的深度，用于日志
+        # 预测深度用于日志
         pred_depth = self.height_model.predict(
-            self.tool_type, cmd_height, hardness, speed, slope_x, slope_y
+            self.tool_type, cmd_percent, hardness, speed, slope_x, slope_y
         )
         self.last_pred_depth = pred_depth
 
         print(
-            f"[控制] 上发悬挂高度: {cmd_height}mm (目标深度: {self.target_depth_mm}mm, "
-            f"当前深度: {current_depth_mm}mm, 误差: {error}mm)"
+            f"[控制] 上发悬挂高度: {cmd_percent}% (目标深度: {self.target_depth_mm}mm, "
+            f"当前深度: {current_depth_mm}mm, 误差: {error:.1f}mm)"
         )
-        return cmd_height  # 修正：必须返回高度
+        return cmd_percent
 
 
 if __name__ == "__main__":

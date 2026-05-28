@@ -31,7 +31,7 @@ class ForwardDepthModel:
 
     def _construct_features(
         self,
-        height_mm: float,
+        height_percent: float,  # 百分比 0-100
         hardness_mpa: float,
         speed_kph: float,
         slope_x_deg: float,
@@ -41,18 +41,18 @@ class ForwardDepthModel:
         return np.array(
             [
                 1.0,
-                height_mm,
+                height_percent,
                 hardness_mpa,
                 speed_kph,
                 slope_x_deg,
                 slope_y_deg,
-                height_mm * hardness_mpa,
+                height_percent * hardness_mpa,
             ]
         )
 
     def predict(
         self,
-        height_mm: float,
+        height_percent: float,
         hardness_mpa: float,
         speed_kph: float,
         slope_x_deg: float,
@@ -60,7 +60,7 @@ class ForwardDepthModel:
     ) -> float:
         """预测耕深 (mm)"""
         x = self._construct_features(
-            height_mm, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
+            height_percent, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
         )
         depth = np.dot(self.theta, x)
         # 限幅到安全范围 [0, 600] mm
@@ -68,7 +68,7 @@ class ForwardDepthModel:
 
     def update(
         self,
-        height_mm: float,
+        height_percent: float,
         hardness_mpa: float,
         speed_kph: float,
         slope_x_deg: float,
@@ -77,7 +77,7 @@ class ForwardDepthModel:
     ):
         """用实际耕深更新模型（RLS在线学习）"""
         x = self._construct_features(
-            height_mm, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
+            height_percent, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
         )
         pred = np.dot(self.theta, x)
         error = actual_depth_mm - pred
@@ -101,7 +101,7 @@ class ForwardDepthModel:
         speed_kph: float,
         slope_x_deg: float,
         slope_y_deg: float,
-        default_height_mm: float = 300.0,
+        default_height_percent: float = 50.0,
     ) -> float:
         """
         解析求解逆映射：给定目标深度返回需要的悬挂高度。
@@ -126,12 +126,12 @@ class ForwardDepthModel:
         # 分母保护（期望正相关，即增加高度深度增加）
         if abs(denom) < 1e-4:
             # 模型未训练或不可靠，返回默认高度
-            return default_height_mm
+            return default_height_percent
 
         h_pred = (target_depth_mm - const_part) / denom
 
         # 限幅在可执行范围（可根据实际液压行程调整）
-        h_pred = max(50.0, min(600.0, h_pred))
+        h_pred = max(0.0, min(100.0, h_pred))
         return h_pred
 
     def get_params(self):
@@ -161,7 +161,7 @@ class MultiToolHeightModel:
     def predict(
         self,
         tool_type: str,
-        height_mm: float,
+        height_percent: float,
         hardness_mpa: float,
         speed_kph: float,
         slope_x_deg: float,
@@ -170,13 +170,13 @@ class MultiToolHeightModel:
         """预测耕深"""
         model = self.get_model(tool_type)
         return model.predict(
-            height_mm, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
+            height_percent, hardness_mpa, speed_kph, slope_x_deg, slope_y_deg
         )
 
     def update(
         self,
         tool_type: str,
-        height_mm: float,
+        height_percent: float,
         hardness_mpa: float,
         speed_kph: float,
         slope_x_deg: float,
@@ -186,7 +186,7 @@ class MultiToolHeightModel:
         """在线更新模型"""
         model = self.get_model(tool_type)
         model.update(
-            height_mm,
+            height_percent,
             hardness_mpa,
             speed_kph,
             slope_x_deg,
@@ -202,7 +202,7 @@ class MultiToolHeightModel:
         speed_kph: float,
         slope_x_deg: float,
         slope_y_deg: float,
-        default_height_mm: float = 300.0,
+        default_height_percent: float = 50.0,
     ) -> float:
         model = self.get_model(tool_type)
         return model.inverse_predict(
@@ -211,7 +211,7 @@ class MultiToolHeightModel:
             speed_kph,
             slope_x_deg,
             slope_y_deg,
-            default_height_mm,
+            default_height_percent,
         )
 
     def save_models(self, save_dir="."):
