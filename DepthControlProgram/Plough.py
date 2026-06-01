@@ -36,10 +36,8 @@ class PloughCalculator:
         alpha, beta, alpha0, beta0 单位：度
         返回：耕深（mm），非负
         """
-        # 相对角度变化
         delta_alpha = alpha - alpha0
         delta_beta = beta - beta0
-        # 相对角度 + 安装角 + 额外偏移
         relative_angle = (
             (delta_alpha - delta_beta) + self.theta_install + self.install_angle
         )
@@ -47,9 +45,5 @@ class PloughCalculator:
 
         # 翻转犁专用公式
         raw_depth = self.Lbeam * math.sin(rad)
-
-        # 校准与零点偏移
         calibrated = raw_depth * self.calibration - self.zero_offset
-
-        # 确保非负并取整
         return max(0, int(calibrated))

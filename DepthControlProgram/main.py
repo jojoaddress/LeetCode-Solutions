@@ -987,7 +987,7 @@ def init_logging(log_enabled, log_dir="."):
         # 更新后的日志列
         if os.path.getsize(raw_log_path) == 0:
             raw_log_file.write(
-                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,"
+                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,Stability_percent"
                 "PredDepth_mm,Speed_km/h,"
                 "TargetDepth_mm,CmdHeight_percent,DepthError_mm,"
                 "SoilHardness_MPa,SoilHardness_x_Depth\n"
@@ -1010,6 +1010,7 @@ def write_raw_log_entry(
     beta,
     alpha,
     depth_mm,
+    stability,
     pred_depth_mm,
     speed_kph,
     target_depth_mm,
@@ -1033,10 +1034,11 @@ def write_raw_log_entry(
     )
     target_str = f"{target_depth_mm}" if target_depth_mm is not None else -1
     cmd_str = f"{cmd_height_percent:.1f}" if cmd_height_percent is not None else "NaN"
+    stab_str = f"{stability}" if stability is not None else "NaN"
 
     # 写入文件
     raw_log_file.write(
-        f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},"
+        f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},{stab_str}"
         f"{pred_str},{speed_str},"
         f"{target_str},{cmd_str},"
         f"{err_str},"
@@ -1123,7 +1125,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
     height_send_interval = monitor_config.get("height_send_interval", 3)
     # 从配置文件读取控制增益，若未设置则默认0.8
     kp = monitor_config.get("control_kp", 0.8)
-    min_updates_for_control = monitor_config.get("min_updates_for_control", 20)
+    min_updates_for_control = monitor_config.get("min_updates_for_control", 1000)
 
     # 全局模式控制器
     mode_ctx = ModeContext(
@@ -1344,6 +1346,7 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                     current_slope_y,
                     current_alpha,
                     depth_mm,
+                    stability,
                     pred_depth_for_log,
                     current_speed_kph,
                     target_for_log,
