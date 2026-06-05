@@ -2,7 +2,7 @@
     "devices": {
         "implement": {
             "name": "机具",
-            "port": "COM8",
+            "port": "COM9",
             "baudrate": 9600,
             "address": 80
         },
@@ -29,7 +29,7 @@
         }
     },
     "monitor": {
-        "sensor_tool_status_interval": 5,
+        "sensor_tool_status_interval": 0,
         "soil_hardness_mpa": 2.5,
         "default_speed_kph": 6.0,
         "height_send_interval": 3,
@@ -43,6 +43,14 @@
         "log_enabled": true,
         "log_dir": "./logs",
         "model_save_dir": "./models",
-        "model_save_interval": 10
+        "model_save_interval": 10,
+        "federated": {
+            "enabled": true,
+            "server_url": "http://127.0.0.1:5000",
+            "client_id": "orangepi_01",
+            "upload_interval": 20,
+            "download_interval": 5,
+            "download_on_start": true
+        }
     }
 }

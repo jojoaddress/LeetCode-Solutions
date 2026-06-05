@@ -8,6 +8,7 @@ from enum import Enum, auto
 import statistics
 import json
 import os
+import requests
 import threading
 import queue
 
@@ -1139,6 +1140,50 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
         min_updates_for_control=min_updates_for_control,
     )
 
+    # FedAvg
+    fed_config = monitor_config.get("federated", {})
+    fed_enabled = fed_config.get("enabled", True)
+    if fed_enabled:
+        server_url = fed_config.get("server_url", "127.0.0.1")
+        upload_interval = fed_config.get("upload_interval", 20)
+        download_interval = fed_config.get("download_interval", 300)
+        client_id = fed_config.get("client_id", "unknown")
+
+        # 启动时拉取全局模型
+        if fed_config.get("download_on_start", True):
+            try:
+                resp = requests.get(
+                    f"{server_url}/download/{tool_config['type']}", timeout=5
+                )
+                if resp.status_code == 200:
+                    global_theta = resp.json()["theta"]
+                    height_model.set_global_model(tool_config["type"], global_theta)
+                    print(f"[联邦] 已加载全局模型，theta={global_theta}")
+            except Exception as e:
+                print(f"[联邦] 拉取全局模型失败: {e}")
+
+        # 记录上次上传时的训练次数
+        last_upload_count = 0
+
+        # 启动后台线程定时拉取
+        def periodic_pull():
+            while True:
+                time.sleep(download_interval)
+                try:
+                    resp = requests.get(
+                        f"{server_url}/download/{tool_config['type']}", timeout=5
+                    )
+                    if resp.status_code == 200:
+                        global_theta = resp.json()["theta"]
+                        height_model.set_global_model(tool_config["type"], global_theta)
+                        print("[联邦] 已更新为最新全局模型")
+                except Exception as e:
+                    print(f"[联邦] 定时拉取失败: {e}")
+
+        if download_interval > 0:
+            pull_thread = threading.Thread(target=periodic_pull, daemon=True)
+            pull_thread.start()
+
     initial_alpha = None
     initial_beta = None
     initialized = False  # 是否已通过归零指令完成初始化
@@ -1292,6 +1337,25 @@ def monitor_data(shared_data, pda_config, tool_config, monitor_config, device_na
                         model_log_file, model.training_count, actual_d, pred_before, err
                     )
                 last_actual_height = -1  # 已处理
+                # ========== 联邦上传逻辑 ==========
+                if fed_enabled and result is not None:
+                    model = mode_ctx.current_model
+                    if model.training_count - last_upload_count >= upload_interval:
+                        try:
+                            theta, cnt = model.get_theta_with_count()
+                            payload = {
+                                "tool_type": tool_config["type"],
+                                "theta": theta,
+                                "training_count": cnt,
+                                "client_id": client_id,
+                            }
+                            requests.post(
+                                f"{server_url}/upload", json=payload, timeout=2
+                            )
+                            last_upload_count = model.training_count
+                            print(f"[联邦] 已上传模型，训练次数={cnt}")
+                        except Exception as e:
+                            print(f"[联邦] 上传失败: {e}")
 
             # 控制模式指令下发
             if can_calculate:
@@ -1493,6 +1557,10 @@ class ModeContext:
             f"当前深度: {current_depth_mm}mm, 误差: {error:.1f}mm)"
         )
         return cmd_percent
+
+    @property
+    def current_model(self):
+        return self.height_model.get_model(self.tool_type)
 
 
 if __name__ == "__main__":

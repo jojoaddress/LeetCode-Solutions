@@ -28,6 +28,30 @@
             "zero_offset": 0.0
         }
     },
+    "tools": {
+        "subsoiler": {
+            "L1": 500.0,
+            "Lt": 300.0,
+            "Ht": 150.0,
+            "install_angle": 0.0,
+            "calibration": 1.0,
+            "zero_offset": 0.0
+        },
+        "rotary_tiller": {
+            "Larm": 400.0,
+            "R": 250.0,
+            "install_angle": 0.0,
+            "calibration": 1.0,
+            "zero_offset": 0.0
+        },
+        "plough": {
+            "Lbeam": 800.0,
+            "theta_install": 15.0,
+            "install_angle": 0.0,
+            "calibration": 1.0,
+            "zero_offset": 0.0
+        }
+    },
     "monitor": {
         "sensor_tool_status_interval": 10,
         "soil_hardness_mpa": 2.5,

@@ -141,6 +141,15 @@ class ForwardDepthModel:
         if theta.shape == (self.dim,):
             self.theta = theta.copy()
 
+    def get_theta_with_count(self):
+        return self.theta.tolist(), self.training_count
+
+    def set_theta(self, theta_list):
+        """直接用全局模型替换本地 theta，P 矩阵重置为初始值（简单策略）"""
+        self.theta = np.array(theta_list)
+        # 重置协方差矩阵，避免过度信任旧信息
+        self.P = np.eye(self.dim) * (self.P[0][0] if self.P[0][0] != 0 else 100.0)
+
 
 class MultiToolHeightModel:
     """管理多种机具的RLS正向深度模型容器"""
@@ -235,3 +244,7 @@ class MultiToolHeightModel:
                 count_key = f"{tool}_count"
                 if count_key in data:
                     model.training_count = int(data[count_key])
+
+    def set_global_model(self, tool_type, theta_list):
+        model = self.get_model(tool_type)
+        model.set_theta(theta_list)
