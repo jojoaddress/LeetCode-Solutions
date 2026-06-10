@@ -988,7 +988,7 @@ def init_logging(log_enabled, log_dir="."):
         # 更新后的日志列
         if os.path.getsize(raw_log_path) == 0:
             raw_log_file.write(
-                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,Stability_percent"
+                "Timestamp,Beta(deg),Alpha(deg),Depth_mm,Stability_percent,"
                 "PredDepth_mm,Speed_km/h,"
                 "TargetDepth_mm,CmdHeight_percent,DepthError_mm,"
                 "SoilHardness_MPa,SoilHardness_x_Depth\n"
@@ -1039,7 +1039,7 @@ def write_raw_log_entry(
 
     # 写入文件
     raw_log_file.write(
-        f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},{stab_str}"
+        f"{timestamp},{beta:.3f},{alpha:.3f},{depth_mm:.2f},{stab_str},"
         f"{pred_str},{speed_str},"
         f"{target_str},{cmd_str},"
         f"{err_str},"
