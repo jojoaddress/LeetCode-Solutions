@@ -1,0 +1,2349 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyrim MOD 列表可视化面板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        skyrim: {
+                            gold: '#c69b3e',
+                            dark: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12 custom-scrollbar">
+
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+                        Skyrim MOD 列表可视化面板
+                    </h1>
+                    <p class="text-xs text-slate-400">清晰排版 · 分类管理 · 实时搜索统计</p>
+                </div>
+            </div>
+
+            <!-- Global Actions & Search -->
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="relative flex-1 sm:w-64">
+                    <input type="text" id="searchInput" placeholder="搜索 MOD 名称..." 
+                        class="w-full pl-9 pr-4 py-2 bg-slate-800/80 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <button id="toggleAllBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    <span>全部展开/折叠</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-medium text-slate-400">MOD 总计</div>
+                    <div id="statTotal" class="text-2xl font-bold text-slate-100 mt-0.5">0</div>
+                </div>
+                <div class="p-2.5 bg-blue-500/10 text-blue-400 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-medium text-slate-400">已启用 (+)</div>
+                    <div id="statEnabled" class="text-2xl font-bold text-emerald-400 mt-0.5">0</div>
+                </div>
+                <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-medium text-slate-400">未启用 (-)</div>
+                    <div id="statDisabled" class="text-2xl font-bold text-rose-400 mt-0.5">0</div>
+                </div>
+                <div class="p-2.5 bg-rose-500/10 text-rose-400 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-medium text-slate-400">DLC / CC / 托管 (*)</div>
+                    <div id="statSpecial" class="text-2xl font-bold text-purple-400 mt-0.5">0</div>
+                </div>
+                <div class="p-2.5 bg-purple-500/10 text-purple-400 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+            <div class="flex items-center gap-2">
+                <button data-filter="all" class="filter-tab active px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 transition">全部 MOD</button>
+                <button data-filter="enabled" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">已启用 (+)</button>
+                <button data-filter="disabled" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">未启用 (-)</button>
+                <button data-filter="special" class="filter-tab px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">DLC / CC (*)</button>
+            </div>
+            <div id="viewModeToggle" class="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+                <button id="viewCardBtn" class="px-2.5 py-1 rounded bg-slate-800 text-amber-400 text-xs font-medium flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                    视图列表
+                </button>
+                <button id="viewTextBtn" class="px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 text-xs font-medium flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    纯文本预览
+                </button>
+            </div>
+        </div>
+
+        <!-- Visual Render View -->
+        <div id="visualView" class="space-y-4"></div>
+
+        <!-- Clean Text View (Hidden by default) -->
+        <div id="textView" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <span class="text-xs font-mono text-slate-400">规整化分行文本 View (Line-broken raw output)</span>
+                <button id="copyTextBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                    复制内容
+                </button>
+            </div>
+            <pre id="rawOutput" class="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap overflow-x-auto max-h-[70vh] custom-scrollbar selection:bg-amber-500 selection:text-slate-950"></pre>
+        </div>
+
+    </main>
+
+    <!-- Mod Data Script -->
+    <script>
+        const rawModList = `# This file was automatically generated by Mod Organizer.
++【服装】EvilFall补丁
++【服装】EvilFall
++【PPA实验室对齐】Penetration Physics Sound Replacer
++【PPA实验室对齐】Penetration Physics
+-动画包-SlalZnaroksPack3.0(SSE)
+-动画包-Rydin Animations SLAL Pack_Complete_SSE v Humun 3 Creature 1
+-动画包-PsycheAnimation SE 1.2.1V
+-动画包-Nymras SLAL Animations 0.9 +Gallow Fix [Nymra][SE][ESL]
+-动画包-Nymra0.1 Forced Foreplay
+-动画包-NCK30 SLAL 4.4 SE
+-动画包-nazonootoko-SE-14-06-2017 Humun 29
+-动画包-MitosAnimationPack
+-动画包-KomAnim_AIO_31.36.16a_To_install-SE Humun 56
+-动画包-K4_anims-1.5SE Humun 8 生物 8
+-动画包-milky 2.3.0
++动画包-Lord_Creature SE SLAL
++动画包-Lord Human SE SLAL
++动画包-BakaFactory's SLAL Pack
++动画包-SLAL NibblesAnims
++动画包-Suke SLAL Version 1.1
++动画包-Billyy's SLAL Petite Animations 8.1
++动画包-Billyy's SLAL Animations 9.9
++动画包-Anubs Animation Pack 7.2025
++动画包-3jiou-SE
++动画包-3jiou
++动画包-DogmaMods-SE
++OSL Aroused欲望系统
++无尽诱惑MassMatchMakerSE_SE_1.0-CN
++无尽生物MoreNastyCrittersSE_v15_0
++动画上限SexLab sslAnimationSlots 3000 SE
++动画切换SexLab Tools v3.0
++独立动画载入工具SexLab Animation Loader SLAL v1.6 SE
++删除实验室自带动画SexLab - Remove Standard Animations - 1-3 SSE
++实验室音效SexLab H Games Voices Beta v1.1
++实验室框架SexLabFrameworkSE_v163
++生物框架CreatureFrameworkV3_0
+-实验室_separator
++【HS2种族·VAM种族】定制捏脸028-VAM·赵灵儿V1.0
++【HS2种族·VAM种族】定制捏脸048-VAM·xiaowupoV1.0
++【HS2种族·VAM种族】定制捏脸044-VAM·ningyaoV1.0
++【HS2种族·VAM种族】Astral
++【HS2种族·VAM种族】定制捏脸001-VAM·mengerV3.02.0
++【HS2】唇彩补丁
++【HS2种族·VAM种族】补丁patch4月16日
++【HS2种族·VAM种族】5.0MAX版（4K）
++【钻石皮肤-肉肉的阴部】Diamond 3BA puffy pussy normal maps
++【美化-至臻】tint files(Must)
+-人物美化-钻石皮肤4k-Diamond Textures CBBE v2 based on FSC
++【钻石皮肤】Diamond Textures CBBE v2 based on FSC
++可选_separator
+-cs预设-HT Basic PP jiaye
+-Kirbykings Community Shaders PP Personal Preset
++VRAMr Output
++VRAMr
++【遗迹杂项网格材质】ElSopa - Misc Ruins Redone 2k
++【岩石材质】Rapidrocks
++PG Output
++PGPatcher
++Window Shadows Ultimate - Patch Hub
++Window Shadows Ultimate
++True Light
++CS Lights
++Light Placer
++Ambient Templates for Lighting Mods
++Dynamic Interior Ambient Lighting (DIAL)
++CommunityShaders_AIO5.28
+-CommunityShaders_AIO
++CrashLogger 1.5.97
++CrashLogger
++Vanilla Clouds Upscaled
++Obsidian CS
++Obsidian Weathers - 1.07a
++XEMI Utility
++Volumetric Mists
++CS_separator
++Auto Parallax
++【字体】HuaJianCi - Another Chinese Fonts
++【汉化】Unofficial Chinese Localisation by Reconquista Studios
++SSE Display Tweaks
++Unofficial eFPS Patches
++eFPS - Official Patch Hub
++eFPS - Exterior FPS boost
++Skyrim SE - Project Optimization - NO HOMES - ESL VERSION
++Lightened Skyrim
++SCROTE BSA Version
++Vanilla Scripting Enhancements
++Skyrim Priority SE AE
++优化_separator
++SKSE Menu Framework
++Log Watcher
++【水下声音视觉修复】Stuck Underwater Visuals and Sounds Fix SKSE
++【矿脉纹理修复】Ore Vein Texture Fix
++Jump Slide Fix (For Horses)
++Jump Slide Fix (First Person)
++Jump Slide Fix (Consistency)
++Jump Slide Fix
++AltTabFix 1.3.1
++Media Keys Fix
++Alchemy XP Fix
++Inertia - Floating Gear Fix
++Miraak Boss Fight ScriptFix
++Horse Jump Fix - OAR
++Alpha Blood Blending Bug (NG)
++Bound Weapon Fix 1 5 97
++Sprint Stuttering Fix
++Rim Lighting Removed
++Killmove Fixes
++Stealth Detection Fixes
++Wheeler ctd-fix
++Horsemen Torch Wield Fix
++Horse Save Load Fix
++Weapon Switch Animation Fix - Behavior Patch Version
++Self-targeting Staff Animation Fix
++NPC Stuck in Bleedout fix
++Stuck on Screen Load Door Prompt Fix
++Green Water Cubemap Fix
++Horse Mount and Dismount Double Sound Fix
++HDT High Heels Fix
++Flute Animation Fix
++Dual Casting Fix
++1st Person Interact Animation Teleport Bug Fix
++WIDeadBodyCleanupScript Crash Fix
++Fixed body collision
++No Edge Glow
++Another Mannequin Fix
++Barter Limit Fix
++Serana Idle Fix
++Actor Limit Fix (Special Edition)
++Face Discoloration Fix SE
++Enchantable Special Item Fix 1.5
++Equip Enchantment Fix
++Enchantment Reload Fix SE
++Actually Flat Flat Snow Drifts
++Chillwind Depths CTD Fix
++College of Winterhold Quest Start Fixes
++WHWR - Ultra Optimized Meshes - PARALLAX
++Whiterun Objects SMIMed
++Whiterun Wall Rubble Fixed parallax
++Windhelm Fake Windows Fix
++Solitude Interiors Meshes FIXES (Parallax)
++King Olaf's Fire Festival Not Ending Fix
++GG's HH Fixed Stairs with Parallax (split)
++Spiders of Solstheim - Transparency Fix
++High Gate Ruins Puzzle Reset Fix
++Dragon Mound Dirt FIX
++Moons And Stars
++Aurora Fix
++Sprint Sneak Movement Speed Fix
++NPC AI Process Position Fix - NG
++Enhanced Invisibility
++Enhanced Reanimation
++Animated Static Reload Fix - SSE
++Animals Swim (Sort Of)
++FixNotesForSkyUI SKSE64
++Floating Ash Pile Fix
++Combat Music Fix NG
++Fixed Fixed Dragon Stalking Fix
++Camera Persistence Fixes
++Sound Fix for Large Sector Drives
++Recursion Fix
++HeelsFix
++MuJointFix SL-OStim Patch
++MuJointFix
++Scrambled Bugs EldenRim Edition
++Scrambled Bugs
++Bug Fixes SSE (Special Edition)
++EngineFixes
++【血吟刃MCO修复】Bloodskal blade（按住A或D+鼠标左右键）
++BUG Fix_separator
+-TexGen_Output
+-DynDOLOD_Output
++【道路材质】Vanaheimr - Northern Roads - PBR - 2k
++【道路减少颠簸】Blended Roads less bumpiness - BoS
++【道路脚步一致】Simplest Roads - Footstep Consistency Patch
++【道路】Simplest Roads Parallax
++【冰川材质】】Vanaheimr - Ice
++【雪地材质】Vanaheimr - Snow
++【火山热霾】Volcanic Heat Haze
++【ERM同款洞穴修复】Enhanced Rocks and Mountains - Addon
++【山远景】ERM - Enhanced Rocks and Mountains - DynDOLOD
++【山材质】Vanaheimr Mountains
++【桥材质】Tomato's Bridge Texture 2k Parallax ALT
++【景观岩石材质】Rocks01
++【景观材质】TomatoRim PBR - Landscapes
++【山】ERM - Enhanced Rocks and Mountains
++Icy Mesh Remaster - Meshes
++Icy Mesh Remaster - IcyFixes
++Terrain Helper
++xLODGen Output
++HD Terrain Noise Texture SE
++远景_separator
++【许愿魔法】Wish Magic
++【远古死亡魔法】Ancient Death Magic
++【远古鲜血法术】Ancient Blood Magic II
++【深渊潮汐魔法】Abyssal Tides Magic
++【深渊之风魔法】Abyssal Wind Magic
++【黑暗祭司魔法】Dark Hierophant Magic
++【鲜为人知的魔法】Obscure Magic
++【冰封仙境魔法】Winter Wonderland Magic
++【风暴召唤魔法】Stormcaller Magic
++【超星星魔法】Constellation Magic
++【奇点魔法】Singularity
++【星辰魔法】Astral Magic
++【耻辱瞬移魔法】Blink Spellv6
++【霍格沃兹魔法】Hogwarts in Skyrim
++【专家法术带穿透补丁】Piercing Expert Spells - Mysticism
++【专家法术带穿透】Piercing Expert Spells
++【元素精通魔法】Elemental Mastery Magic
++【召唤末日之刃-弗基哈尔要塞获取法术书】doomsday of blades (se-ae)
++【皮肤法术特效补丁】Mysticism FleshFX Patch
++【皮肤法术特效补丁】FleshFX and Immersive Sounds Compendium Patch
++【皮肤法术特效】Flesh FX
++【魔法大修跳跃扩展】Mysticism - Jump Spell Addon
++【魔法大修】Mysticism - A Magic Overhaul
++【更好的吸血鬼】Better Vampires 9.1 SE-AE
++【冻结触电与焚烧】Frozen Electrocuted Combustion
++【维吉尔次元斩】Judgement Cut End - ap05's Remake
++【激活潜行魔法】Magic Sneak Attacks
++【法术痕迹AOS ISC补丁】DSI AOS ISC Patch
++【法术痕迹视差】Parallax Spell Impacts
++【法术痕迹效果】Deadly Spell Impacts
++【奇异博士施法特效】Strange Wards
++【吸收魔法特效】Drain Magic VFX Edit
++【烛火特效无光】Candle Flame VFX Edit - No Glow
++【发光魔法特效】Light Magic VFX Edit
++【传送召唤法术特效】KittyVFX - Portals
++【火把粒子特效】Embers XD Torch Edit
++【治疗魔法特效】KittyVFX - Healing
++【火魔法特效】KittyVFX - Fire
++【冰魔法特效】KittyVFX - Frost
++【雷魔法特效】KittyVFX - Lightning
++【雷魔法材质】Voltage 2K
++【更好的龙吐息】Better Dragon Breath ALL INCLUDED
++【忘记法术】Forget Spell
++魔法_separator
++【服装】Aokili Summerwear Collection 2026
++【服装】[Stella] Stelladyne Cat 3BA
++【服装】[Stella] Magical Girl 3BA
++【服装】TFD Goddess of Thunder 3BA - PBR Patch
++【服装】TFD Goddess of Thunder 3BA
++勒肉比基尼-Goma MiniBikini CBBE
++【服装】Shattered Royal Armor
++【服装】FREESTYLE - hdt SMP
++【服装】(3BA) Enya Skeleton
++【服装-眼睛】Glasses Pack vol.1
++【服装】Half Dragon Armor
++[SSE] Warning
++AE_Once_Astral_Leap
+-自定义-服装_separator
++[Caenarvon]Cosplay Pack Casual - Winter (CBBE 3BA)
++[Caenarvon]Cosplay Pack Gala - hdt SMP (CBBE 3BA)
++[Caenarvon]Cosplay Basics Patch - Diamond Skin
++[Caenarvon]Cosplay Basics - (CBBE 3BA)
++[Caenarvon]Cosplay Pack - hdt SMP
++[Caenarvon]漂泊者 - Rover
++[Caenarvon]简 - RAT - hdt SMP (CBBE 3BA)
++[Caenarvon]卡夫卡 - Sangria - hdt SMP
++[Caenarvon]申鹤 - Calamity Queller - hdt SMP
++[Caenarvon]雷电将军Narukami
++[Caenarvon]甘雨 - Stargazer - hdt SMP
++[Caenarvon]月清疏 - Yue Qingshu - CBBE 3BA
++[Caenarvon]法老奴隶 - Pharaoh Slave
++[Caenarvon]黑暗法师- Dark Mage of Plegia - hdt SMP
++[Caenarvon]核心法师 - Magecore - hdt SMP (CBBE 3BA)
++[Caenarvon]凤凰之魂 - Phoenix Soul
++[COCO] 幻雪女王Snow Queen
++[COCO] 暗影刺客Shadow Assassin
++[COCO] 甜美新娘Deliciously Bride
++[COCO] 2B婚服2B Wedding Outfit
++[COCO] 神秘法师Mysterious Mage
++[COCO] 飞舞FlyinDance
++[COCO] 性感旗袍Pinup Cheongsam
++[COCO] 潘多拉Pandora Box
++[ELLE] 伊莱恩骑士套装Knight Elaine
++[ELLE] 玛吉奥莉套装Mageali
++[Dint999] 物理发型BDOR Hair Addon
++[Dint999] 物理发型BDOR Hairs SSE 0.24
++[Dint999] 物理发型HairPack02 SSE 1.13
++[Dint999] 魔法美甲Magic Nails (SE) v0.1
++[Dint999] 猫耳朵FacePartMod (SSE) v0.72b
++[Dint999] 恶魔护甲 DemonArmor v1.00a (SSE)
++[Dint999] 阿瑟尔-希里套装 BDO Arethel+Heled SMP CBBE 3BA
++[full_inu] 魂系服装 Armor Pack 01 SSE
++[full_inu] 玛莉卡晚礼服Queen Marika's Dress SSE
++[full_inu] 瘟疫传说尼古拉斯勋爵护甲Lord Nicholas Armor SSE
++[BAKU]落英闪光精灵套装VDF Shimmering Elf 3BA
++【古剑奇谭三北洛 缙云】
++【古代帝国铠甲】Ancient Imperial Armor SE
++【尸鬼勇士铠甲】Draugr Warrior Armor 2k - SE by Xtudo
++【狮鹫骑士铠甲】Gryphonknight Regalia - Breton Noble Armor
++【失落方舟卡曼铠甲】LostArk Kamen Armor HDT
++【达斯·维达盔甲】[Kirax] [Comission] Darth Vader
++【泣血蔷薇替换拉玛耶服装】Grievous Rose VIGILANT Lamae Dress Replacer
++【泣血蔷薇护甲】Grievous Rose Multicolor 2k
++【常青骑士铠甲其他色】Viridian Armor - Recolored - 4k
++【常青骑士铠甲】Viridian Knight Armor
++【黑暗女巫护甲】Dark Witch Armor
++【艾利西弗分配晚礼服套】Queen Marika to Elisif SPID
++【暮光公主护甲】Twilight Princess Armor Mashup
++【兔女郎刀妹】RyanReos Battle Bunny Irelia - SMP 3BA
++【内衣】Nezzar Ult Lingerie Collection
++【2B服装】 YoRHa 2B Attire SSE CBBE 3BA
++【玛莲妮亚护甲】Elden Ring - Malenia, Blade of Miquella (SE - CBBE 3BA)
++【黑沙服装包】BDOR Pack by TeamTAL pack 2.0
++【黑沙服装包】[Kirax] BDOR 2024 Female Collection
++【黑沙卡尔斯坦套装】[NINI] Karlstein
++【盗贼大师护甲替换原版】FB - Thieves Guild Armor Replacer
++【盗贼大师护甲3BA物理】FB - Master Thief 3BA-CBBE SMP
++【盗贼大师护甲HIMBO物理】FB - Master Thief HIMBO SMP
++【盗贼大师护甲HIMBO】FB - Master Thief HIMBO
++【盗贼大师护甲】FB - Master Thief 3BA-CBBE 4k
++【百合花高跟】CBBE 3BA
++【水晶高跟】DOA5 Gem bikini SMP
++【Misc高跟】Misc Heels Eins_CBBE
++【物理配件】Nirn Necessities - SMP Accessories
++【带灯笼背包】Magical Bag HDT-SMP Lights 2K
++【旅行者背包】Traveler's Backpack HDT-SMP
++【锻莫小飞灯】Dwemer Fairies SSE
++【至尊魔戒】The One Ring
++【独特戒指补丁】JS Unique Utopia SE - Rings - USSEP Patch
++【独特戒指补丁】JS Unique Utopia SE - Rings - ISC Patch
++【珠宝首饰】KS Jewelry SSE
++【瑟兰迪尔王冠】Thranduil Crown Craftable
++【GR狐耳狐尾】
++【吸血鬼服装扩展分发】Vampire Clothing Expansion SPID
++【吸血鬼服装扩展】Vampire Clothing Expansion
++【吸血鬼护甲扩展分发】Vampire Armor Expansion SPID
++【吸血鬼护甲扩展】Vampire Armor Expansion
++【法师服装扩展分发】Mage Clothing Expansion Expanded (and SkyPatched)
++【法师服装扩展】Mage Clothing Expansion
++【普通服装扩展分发】Common Clothing - Farm Clothes Replacer Skypatch
++【普通服装可锻造】Crafting recipes
++【普通服装可交易】radiant raiment merchant list
++【普通服装扩展】Common Clothing Expansion
++【更多种类服装】More Varied Clothes
++【儿童服装】Prince and The Pauper Refine
++【儿童服装】Prince and the Pauper SE
++【卫兵护甲PBR材质】Sons of Skyrim PBR
++【卫兵护甲】Sons of Skyrim
++【军团护甲3BA】New Legion CBBE 3BA
++【军团护甲PBR材质】NordwarUA Legions PBR
++【军团护甲】New Legion
++【哨兵-NPC护甲】Sentinel - An Equipment Overhaul
++【哨兵前置】Sentinel - Required Resources
++【不可游玩派系护甲】Unplayable Faction Armors
++【原版武器护甲PBR材质】Weapons and Armors Remastered - PBR (2k)
++【龙祭司材质面具护甲】Dragon Priest Retexture SE
++【法袍材质】Robes Retexture SE
++【魔冰武器材质】Kanjs - Stalhrim Weapons Animated
++【矮人黄金管道-箭袋】ElSopa - Quivers Redone - GDPR
++【箭袋材质】ElSopa - Quivers Redone 2k SE
++【夜莺套材质】Frankly HD Nightingale Armor and Weapons [SSE]
++【魔冰护甲材质】Stalhrim Armors and Weapons Retexture SE
++【派系护甲材质】Faction Armors and Weapons Retexture SE
++【骨模护甲材质】Bonemold Armors and Weapons Retexture SE
++【甲壳素护甲材质】Chitin Armors Retexture SE
++【伐莫护甲材质】Falmer Armors and Weapons Retexture SE
++【银质护甲材质】Silver Armor and Weapons Retexture SE
++【古诺德护甲材质】Ancient Nord Armors and Weapons Retexture SE
++【帝国护甲材质】Imperial Armors and Weapons Retexture SE
++【魔神卡拉维库斯·威尔面具材质】Masque of Clavicus Vile 2k
++【宝石材质】Praedy's Gemstones Replacers HD SE
++【头环材质】JS Vanilla Circlets SE - 2k Textures
++【独特戒指材质】JS Unique Utopia SE - Rings - 1k Textures
++【护符材质】ElSopa Glorious HD Amulets Optimized
++【原版服装BS】CBBE 3BA Vanilla Outfits Redone
++【普通服装材质】Common Clothing Retexture SE - Half Res
++【灵鹿瑶羽】
++Faster HDT-SMP
++CBBE 3BA
++CBPC - Physics with Collisions
++CBBE - Caliente's Beautiful Bodies Enhancer
++服装_separator
++【武器-Vindictus Delia大剑】Delia 2hm idle (Personal Modified Version)
++【武器-Vindictus Delia大剑】Delia
++【武器-Vindictus Delia大剑】Sworn Greatsword
++【功能-剑】Regal Greatswords
++单推-战双 森息21_MCO-BFCO(修复轻击流血BUFF)
+-自定义-武器_separator
++【Dra-逝水拂霜（枪和弓）】
++【古剑三武器包】
++【精灵箭袋】
++【黑暗之弓】
++【幽谷弓】Rivendell Bow SE
++【弓弩合集】Legendary Skyrim Crossbows and Bows
++【瑟兰迪尔之剑-独家】The Sword Of Thranduil
++【巨剑龙牙】Long Fang SE
++【阿拉贡之剑-安都瑞尔】Anduril
++【刺叮】sting sword
++【双头刀】Nicos Twinblades SE
++【双头刀】Twinblades of Skyrim
++【带刃法杖】Bladestaff of Skyrim
++【法杖补丁】Praedy's Staves AIO Patch Hub
++【矮人黄金管道-法杖】Praedy's Staves - GDPR
++【法杖替换】Praedy's Staves AIO
++【镰刀】Yol'Kreh - The Infernal Scythes
++【镰刀】Cosmo-War Scythe-4K
++【星战暗剑】Darksaber AIO
++【8把武器】Artifact of Might
++【无情之刃】Relentless
++【星刃】Dwueth'Var - The Star Razor 4k
++【巫师三长剑】DX Witcher Swords
++【匕首】Spectral Dagger
++【匕首】Serpent Dagger
++【匕首】Perseus Dagger
++【匕首材质】JS Unique Daggers - 2k Textures
++【地精长矛材质】Riekling spears
++【盾牌材质】ElSopa - Shields Redone - Part I 2K
++【铁制武器材质】ElSopa Iron Weapons Redone 2k
++【钢制武器材质】Steelthorn Steel Weapon Replacer
++【银制武器材质】Silverthorn Sword Replacer
++【银制武器库】Silverthorn Weaponry
++【哈孔之剑大修】Harkon Sword Rework 1.03
++【魔神器护甲材质合集】Unique Armors and Weapons Retexture SE
++【伐莫系列物品材质补丁】HD Falmer Armor - Leanwolf's Better Shaped Weapons Patch
++【武器模型材质】LeanWolf's Better-Shaped Weapons - All in One Installer
++【伐莫系列物品材质补丁】HD Falmer Armor - Heavy Armory Patch
++【动画军械库补丁】Animated Heavy Armory - with tweaks and patches
++【动画军械库】Animated Armoury
++【武器位置调整】IED - Weapons Repositioner
+-【武器物理摇晃】CBPC Equipment Physics
++武器_separator
++【双人睡觉动画】Double Bed Spooning - OAR
++【斜坡动画】EVG CLAMBER - Slope Animations
++【祈祷动画】idlepray.hkx replacer for females (OAR)
++【车夫动画】Lively cart driver animation replacer - SE or AE
++【活泼的儿童动画】Lively Children Animations (OAR)
++【NPC手势动画】Gesture Animation Remix (OAR) - main archive
++【NPC酒馆庆祝动画】Conditional Tavern Cheering (OAR)
++【NPC手臂动画】Arm Movement Animations (OAR)
++【NPC动画】NPC Animation Remix (OAR)
++【马动画】Horse Animation Overhaul - HAO
++【狗狗坐下和趴下动画】Doge and Cheems Animation Replacers DAR-OAR
++【狗狗动画】Casual Dog Animations DAR-OAR
++Eating animations - Vergis Wine Collection
++Eating animations - Vergis Open Bar
++Eating animations - TB's Better Bread patch
++Eating animations - Halffaces - Hot Dog
++Eating animations - Halffaces - Horse Meat Update
++Eating animations - Halffaces - Horker Meat
++Eating animations - Halffaces - Dragonborn alcohol
++Eating animations - Cabbage NEW by iimlenny patch
++Eating animations - Bread 4K-8K by iimlenny patch
++Eating animations - Pie 4K-8K by iimlenny patch
++Eating animations - Eidar Cheese Wedge by iimlenny
++Eating animations - Cheese Wedge - Replacer
++Eating animations - Basic Dining Set - Tankard
++Eating Animations - Patch Collection
++【吃食动画物品材质】】Eating animations - My HD version SE
++【吃食动画】Eating Animations And Sounds SE
++【入水动画】Simple Diving System
++【浮水高度修复】Fixed SwimIdle Floating
++【游泳动画】Stronger Swimming Animations
++【骑马动画】Riding Animation Overhaul - RAO
++【磨刀动画】Crafting - Spinning Wheel animations
++【刮毛动画】Crafting - Tanning Rack animations
++【附魔动画】Crafting - Enchanting animations
++【烹饪动画】Crafting - Cooking animations
++【炼金动画】Crafting - Alchemy animations
++【快速劈柴】Faster Woodcutting Animation
++【快速挖矿】Faster Mining Animation
++【斧子镐子动画】Tools not weapons DAR animations
++【吧台起身动画修复】Barstool Exit Animation Fix
++【桌面起身动画】Improved Table Transitions
++【干杯庆祝动画】Conditional tavern cheering (DAR)
++【禁用NPC拉伸动画】Disable NPC stretching idle
++【男性家具动画】Male Furniture Animation Pack
++【男性倚靠动画】Random Male Wall Leaning Animations - OAR
++【男性闲置走跑动画】Goetia Animations - Male Idle Walk And Run
++【女性化的转身动作】Feminize - Turning
++【女性走跑动画】mcgFemaleWalk for Skyrim SE
++【女性坐姿】Modern Female Sitting Overhaul OAR
++【女性暖手动画】Dynamic Female Hand Warming OAR
++【改进的桌前坐下动画】Improved Table Sit Transition OAR
++【女性倚靠动画】Dynamic Female Rail Leaning OAR
++【女性靠墙动画】Dynamic Female Wall Leaning OAR
++【女性躺下动画】Improved Idle Laydown Animations - OAR
++【女性边边坐动画】Dynamic Female Ledge Sitting OAR
+-【女性闲置动画】Gulan0-Idle action-OAR
++【去除旋转死亡动画】No Spinning Death Animation
++【冥想动画】Take a Seat - OAR Animations
++【跳跃动画】Smooth Random Jump Animation Rework
++【更好的跳跃】Better Jumping SE
++【小动画合集】UNDERDOG - Animations - OAR
++Sonders Keyword Distribution Resources
++【尸鬼尬舞动画】Thriller Draugr
++【海姆斯科尬舞动画】Heimskr Orange Justice
++Pandora Output
++一般动画_separator
++【龙硬直动画】Dragon Random Stagger Animation
++【龙翅膀动画】Dragon Wing Flapping Animation Fix
++【龙攻击动画】DAC - Dragon Combat Animations
++【龙攻击动画】Dragon Animation Replace
++【更好的龙近战】Better Dragon Melee No Player KD
++【矮人百夫长攻击动画】Centurion Animation for Latest Pandora
++【矮人机械球攻击动画】Combat Animations Overhaul - Dwarven Sphere
++【尸鬼巨斧巨锤动画】Draugr 2hw Attack Animation
++【尸鬼巨剑动画】Draugr Greatsword Animation
++【尸鬼长剑动画】Draugr One-handed (Precision Creatures Version)
++【尸鬼法术动画】Draugr Magic Casting Animation
++【尸鬼徒手动画】Draugr Unarmed Attack Animation
++【伐莫攻击动画】Falmer Animation 2.0 OAR
++【巨人攻击动画】Giant Animation 2.01
++【冰霜巨人攻击动画】Frost Atronach Animation
++【狼人攻击动画】Werewolf Animation
++【巨魔攻击动画】Troll Animation
++【潜伏者攻击动画】Lurker Animation
++【地精攻击动画】Riekling Animation
++【剑齿虎攻击动画】Sabre Cat Attack Animations
++【野兽种族徒手动画含NPC】Elden Rim - Claws moveset for PLAYER and NPCS
++【军械库长枪动画含NPC】wolong Spear SCAR
++【军械库戟和极斧NPC动画】Lawbringer - Halberd for NPCs I SCAR
++【军械库戟动画含NPC】MCO WoLong Halberds(S.C.A.R)
++【军械库刺剑动画含NPC】ER Rapier(SCAR)
++【军械库武士刀动画含NPC】ER KATANA (MCO SCAR)
++【双头刀动画含NPC】ER Twinblades SCAR
++【NPC双持动画】BanishedKnight-Dual sword
++【钉锤动画含NPC】mace animation
++【战斧&战斧钉锤双持动画】Elder Creed - Axe Moveset AIO
++【NPC镰刀&巨斧动画】Mixed Scythe(SCAR)
++【NPC武士刀双持动画】Elden Rim x DS3 - Dual Katana moveset (MCO - SCAR)
++【NPC单手斧攻击动画】Northern WarAxe Animation
++【NPC锤盾攻击动画】Conqueror I Mace and Shield (MCO I SCAR)
++【NPC剑盾动画】Valkyrie I Sword and Shield for NPCs (SCAR)
++【NPC巨剑动画】LightGreatswords 2hm
++【NPC长剑动画】Unladen Resurrected (MCO I SCAR)
++【NPC攻击动画】EldenRim moveset collection(NPC)
++【NPC翻滚】Simple Npc Dodge
++【NPC喝药】Smart NPC Potions
++【TK闪避替换动画】Dynamic Dodge Animation
++【TK闪避】TK Dodge RE
++【TK闪避】TK Dodge SE
++【第一人称闪避动画】First Person Dodges - shorter distance
++【第一人称火把动画】JellyFishFP TORCH
++【第一人称刺杀动画】JellyFishFP Sneak Killmove Dagger
++【第一人称匕首动画TK补丁】Pandora TK dodge patch
++【第一人称匕首动画】JellyFishFP DAGGER
++【第一人称弩箭动画】JellyFishFP CROSSBOW
++【第一人称硬直动画】1st Person Stagger Replacer
++【喝药动画】JellyFish Ultimate Animated Potions NG patch
++【巨锤动画含NPC】MCO WoLong Warhammer(S.C.A.R)
++【巨斧动画含NPC】MCO WoLong Battleaxe(S.C.A.R)
++【长矛动画含NPC】MCO WoLong Pikes(S.C.A.R)
++【长剑动画含NPC】MCO WoLong Straight Sabre(S.C.A.R)
++【长剑双持动画】Ronin Paired Swords-Mumyo-ryu(S.C.A.R)
++【巨剑动画】NxB - Greatsword support
++【平滑哥动画】For Honor in Skyrim
++【基础移动动画战斗路径补丁】Smooth Moveset - OAR (CPR)
++【基础移动动画EVG补丁】Smooth Movese EVG Conditional Idles patch
++【基础移动动画】Smooth Moveset - OAR
++【条件动画预设保存】EVG Conditional Idles - Settings Loader
++【条件动画】EVG Conditional Idles
++【Smooth-动态格挡击退声音修复】Dynamic Block Hit
++【Smooth-动态格挡击退】Dynamic Block Hit
++【Smooth-弓箭速射优化】Bow Rapid Combo V3 - Micro Script Optimization
++【Smooth-弓箭速射】Bow Rapid Combo V3
++【Smooth-动态弓箭动画】Dynamic Bow Animation
++【Smooth-法术&剑动画】SpellSword Moveset
++【Smooth-法术待机动画】Dynamic Random Spell Idle - Player NPC All
++【Smooth-武器跳跃动画】Smooth Weapon Jump Animation
++【Smooth-左手动画大修】Left Hand Equipment Overhaul
++【Smooth-动态冲刺】Dynamic Sprint
++【龙腾世纪法杖动画-佩戴饰品使用】Dragon Age Staff Moveset
++【格伦茉莉左手手枪动画】Simple Pistol Shooting Animation
++【缙云-单手剑动画(古剑三武器包专属)】
++【深渊-单手剑动画(深渊之刃专属)】Abyssal Blade MCO
++【冲刺攻击动画】Eivor - ADXP I MCO Sprint Attacks
++【龙吼旋风冲刺动作】Goetia Animations - Momentum Whirlwind Sprint
++【龙吼动作】Goetia Animations - Conditional Shouts
++【法杖动画】Goetia Animations - Enchanted Staves
++【法术动画】Goetia Animations - Magic Spell Casting
++【魔法武器收回动画】Don't sheat bound weapons
++【巨剑潜行动画】Leviathan animations II - Greatsword Sneak
++【潜行魔法动画】Goetia Animations - Sneak Magic
++【潜弩动画】Vanargand Animations - Sneak Crossbows
++【弩箭动画】Vanargand Animations - Crossbows
++【潜匕动画】Vanargand Animations - Sneak Thrust Attacks
++【潜斧动画】Vanargand Animations - Sneak Strike Attacks
++【潜行动画】Vanargand Animations - Sneak Idle Walk and Run
++VioLens - A Killmove Mod SE - Settings Loader
++【处决动画】VioLens - A Killmove Mod SE
++【鲤鱼打挺起身】BadAss Get-Up Combat only Version
++【快速起身动画】】Super Fast Get Up Animation
++【IED武器入鞘动画】Weapon Styles - DrawSheathe Animations for IED
++【取消转向动画】Disable Turn Animation SE
++【喝药补丁】Ultimate Animated Potions NG - ElSopa - Potions
++【喝药】Ultimate Animated Potions NG
++战斗动画_separator
++【命中特效血腥交响曲补丁】Sanguine Symphony - Separated Slash Effects X
++【血腥交响曲】Sanguine Symphony - Latest Version
++【肢解框架人类HIMBO】Official Humanoid Asset Pack - HIMBO Patch
++【肢解框架人类3BA】Official Humanoid Asset Pack - CBBE-3BA Patch
++【肢解框架生物补丁】Official Creature Asset Pack - Latest Version
++【肢解框架人类补丁】Official Humanoid Asset Pack - Latest Veersion
++【肢解框架】Dismembering Framework - Latest Version
++【环战技】5-EldenWarAshForMCO 1.5.8
++【环战技】4-Elden Weapon Arts for Npc 1.4.3
++【环战技】4-Elden Special Weapon Art 1.0.3
++【环战技】3-Elden Rim War Ash Pack03 1.1.5
++【环战技】3-Elden Rim War Ash Pack02 1.5.3
++【环战技】2-Elden Rim War Ash Pack01 1.7.9
++【环战技】1-Elden Rim-Weapon Art 3.2.2
++【环战技】0-Elden Rim-Base 3.7.2
++【环格反】Elden Counter
++【格挡音效替换】Riposte - Parry SFX
++【英灵殿种族补丁】Valhalla Combat - Race Addons
++【英灵殿战斗】Valhalla Combat
++【过图敌人停止攻击】Loading Screen Truce
++【降低敌人弓箭手准度】Less Sniperlike NPCs 70 percent
++【NPC无限格挡修复】NPC Block Loop Fix
++【消除敌人完美追踪玩家】Mortal Enemies - SkyPatched
++【去除敌人蜘蛛感应】No BS AI Projectile Dodge
++【敌人围绕作战】Wait Your Turn - Enemy Circling Behaviour
++【敌人战斗路径】】Combat Pathing Revolution
++【SCAR体力限制】 - Stamina Limitation
++【SCAR】 - Skyrim Combos AI Revolution
++【命中特效】separated Slash Effects X
++【命中特效前置】MIF - Mu Impact Framework
++【非战斗马匹无限体力】Infinite Horse Stamina Out of Combat
++【非战斗主角无限体力】Elden sprint
++【按住冲刺】Classic Sprinting Redone
++【攻击速度修复】Comprehensive Attack Speed新
++【更宽的格挡范围】Wider block angle
++【格挡移动修复】MCO Blocking Footstep Fix
++【双持格挡】Dual Wield Parrying SKSE
++【双持解锁左手动画】Dual Wielding Unlocker
++【影天格挡大修】Maxsu Block Overhaul
++【去除硬直镜头抖动】3rd Person Camera Stagger Remover
++【只狼只有火花】Sekiro Combat S - Sparks Only
++【只狼】Sekiro Combat S
++【格挡火花】Simple Block Sparks
++【硬直方向修复】Stagger Effect Fix
++【影天硬直】Modern.Stagger.Lock-v1.07a
++【脱战大修】Better Combat Escape
++【友军误伤管理预设保存】Simple Offence Suppression - Block Friendly Fire - Settings Loader
++【友军误伤管理】Simple Offence Suppression - Block Friendly Fire
++【友军误伤管理】Simple Offence Suppression
++Precision magic trails - ENB Light - Smokeless
++Precision magic trails - ENB Light
++Precision magic trails
++Precision Trail_Transparency
++Precision Creatures
++Precision
++【攻击数据转换修复】Attack Data Transition Fix
++【MCO冲刺攻击修复】MCO Sprint Attack Fix
++【MCO禁用原版方向重击】 MCO- No Directional Power Attacks
++MCO 1.6.0.6
++【暗杀模组】Sneak Tools (Minimal)
++【一键重击】One Click Power Attack NG
++Aggressive Combat AI
++Vanilla Attack Annotation Fix
++Core Impact Framework - Creature Patch
++Core Impact Framework - Latest Version
++Dynamic Activation Key - MCM
++Dynamic Activation Key
++DKAF - Dynamic Key Action Framework
++IFrame Generator RE
++Keyword Item Distributor
++dTry's Key Utils SE
++Open Animation Replacer - IED conditions
++Open Animation Replacer
++Paired Animation Improvements
++Dynamic Animation Casting NG Plus
++Behavior Data Injector
++Animation Motion Revolution
++Payload Interpreter
++Animation Queue Fix
++战斗前置_separator
++【pose动作】Sonders Variety Poses
++【pose动作】GSPoses SE
+-【pose插件】Poser Hotkeys Plus SSE
++【表情插件】Minimin Facepack for PoserHotKeys Plus
++【表情控制台补丁】MfgFix-PCHeadTracking-patch
++【表情控制台】Mfg Fix
++【脸光-背包里看书】IntegratedFaceLight
++拍照_separator
++【拍照场景】[AN] Cyber Club SE V2.0 coc ANCyber 进入
++【住宅-白峰塔】Whitepeak Tower Vanilla Textures(白漫平原，钥匙在木桩桥对面)
++【住宅-泰尔杰丁】Tel Jerdein（古杉镇附近）
++【住宅-秋门】Autumngate（古杉镇附近）
++【住宅-帽子随身小屋】Hat Trick 1.0.9
++住宅_separator
++【随从】Kurone Jordis Replacer
++【随从】Narmaya Follower
++【随从】超美性感野性龙娘随从 罗娜·佩娅特
++Kurone Soul Tomb - Navmesh Tweaks
++Kurone Soul Tomb - Update Patch
++随从拓展-黑魂之墓2.0 Kurone Soul Tomb
++【随从-精灵】Fetri El
++【随从】Beatrice Follower (Ginnungagap) - 比特
+-自定义-随从_separator
++【奥璃警戒者补丁】Auri VIGILANT commentary patch
++【奥璃伊尼戈补丁】Auri Follower Inigo Banter Patch ESLified
+-【奥璃美化】Song of the Green - Auri Lenka Replacer SE
++【随从-美化】Alaris to Auri
++【奥璃】Song Of The Green (Auri Follower（弗克瑞斯左上荚屋）
++【灰狐】GrayFox-mola（龙临堡）
++【伊尼戈美化】High-Poly Inigo Replacer
++【伊尼戈】INIGO（裂谷城监狱）
++【取消随从碰撞】Disable Follower Collision
++【设置随从家园】Settling of Squad - Set Follower Home
++【NFF随从管理】Nether's Follower Framework
++随从_separator
++【草地缓存】Grass Cache
++NGIO - NG (1.6.3)
++Landscape Fixes For Grass Mods - Immersive Citizens Patch
++Landscape Fixes For Grass Mods patches
++Landscape Fixes For Grass Mods
++【山洞里没有草】No Grass In Caves
++【风吹草动】Windy Grass - Multiplier 7
++Freak's Floral Solstheim
++Freak's Floral Fields
++【灵魂石冢草】3D Soul Cairn Grass
++【大教堂草地库】DrJacopo's - 3D Grass Library - Meshes
++草地_separator
++【矮人黄金管道-矮人树】Noteworthy Trees Uniquefied - Dwemer Tree - GDPR
++【矮人树】Dwemer Tree
++【法师学院树】Mage College Tree
++Aspens Ablaze Add-On - DynDOLOD 3
++Aspens Ablaze
++Nature of the Wild Lands - Rock Replacer
++Nature of the Wild Lands - Patch Collection
++Nature of the Wild Lands
++【沉睡之树美化补丁】Skyfall Sleeping Hist Tree OverhaulEmbers XD Patch
++【沉睡之树美化】Skyfall Sleeping Hist Tree Overhaul - NO NEED DYN
++【天际古树】Ancient Trees of Skyrim
++【古辉树之根网格】Higher Poly Vanilla Eldergleam Roots
++【瑞驰树网格材质】】Subdivide and Smooth - Reach Trees - Half Res
++【灵魂石冢树】Dilon Reyth Reborn - Soul Cairn Trees
++【黑境树美化】Fancy Sleeping Tree Replacer
++HD Reworked Happy Little Trees
++【锯木模型材质】Happy Little Trees
++【杨树原木网格】Aspen Logs Pruned SE
++【原木网格】Happy Little Logs
++【去除树上吊苔】Remove Hanging Moss From Trees
++【卷须藤材质】2K tendril Vines
++【卷须藤模型】Subdivide and Smooth - Vines
++【独孤城内树】Blubbo_Solitude_2023
++【裂谷城内树】Blubbos_Riften_Trees_2022
++【马卡斯城内树】Blubbos_Markarth_2022
++【颂歌之树材质】A Canticle Tree
++【去除丑陋树枝】No More Ugly Branches
++树木_separator
++【山花】Reimagined Mountain Flowers
++【荷叶摆动】】Animated water lily SE
++【荷叶】Waterplants for Skyrim
++【蕨类】Better Ferns 2K Optimised SSE Version
++【灌木材质】Shrubbery Symphony - Enhanced Greenery
++【苔藓材质】Cathedral - 3D Stonecrop
++【苔原灌木材质】Cathedral - 3D Tundra Shrubs
++【松树灌木材质】Cathedral - 3D Pine Shrubs
++【洞穴植物材质】2K Caveworm
++【荨麻材质】Renthal Nettle SSE
++【3D龙舌兰】Rally's Dragons Tongue
++【3D龙葵】Cathedral - 3D Nightshade
++【3D丧钟花】Cathedral - 3D Deathbell
++【3D雪果制作物材质】Cathedral Snowberries - Inventory - Wreath - Hearthfires Planter
++【3D雪果】Cathedral - 3D Snow Berries
++【3D三叶草】Cathedral - 3D Clovers
++【3D薰衣草】Cathedral - 3D Lavender
++【3D苔原棉花】Cathedral - 3D Tundra Cotton
++【3D蓟草】Cathedral - 3D Thistle
++【3D尖刺草】Carex - 3D Spiky Grass
++【蘑菇材质】2K Mushroom Textures Revamped
++【平滑的蘑菇根】Better Blended Mushrooms
++【发光蘑菇材质】Anim Tentacles Glowing Mushroom
++【灵魂石冢植被】Soul Cairn Flora Replacements
++【黑境灌木材质】Blackreach Bush
++【黑境蘑菇材质】Fancy Glowy Blackreach Mushrooms
++【落叶灌木材质】Fall Forest And Yellow Shrubs Redone 2K
++【瑞驰蕨类材质】Reach Fern 2K
++【瑞驰蕨类模型】Reach Ferns Mesh Tweaks
++【山花材质】Mountain flower by Mari SE 2k
++【刺柏材质】Juniper by Mari
++【常春藤材质】Ivy by Mari
++【架子湾葡萄材质】Jazbay by Mari
++【沼泽真菌荚材质】Swamp fungal pod by Mari
++【3D浮木】Skyrim 3D Driftwood 2K
++【3D松树碎枝】3D Pine Forest Debris SSE
++植物_separator
++SB - SDR for Lux Via Bridges - Parallax
++Lux - Via - CHS
++Lux - Via - patch hub
++Lux - Via - Kynareth Addon
++Lux - Via - Parallax Patch
++Lux - Via
++【有趣的道路】Interesting Roads ESM
++【金色光辉庄园桥美化】Unique Goldenglow Estate Crossing
++【桥美化补丁】Valhalla Bridges - Addons Patches and Fixes
++【桥美化】Valhalla Bridges ESL
++【古代阿特莫拉遗迹】Ancient Atmoran Remains (se-ae)
++【海岸鲸骨】Whale Bones on Coasts
++【农舍屋顶补丁】UFA - Falkreath - Spaghetti's Cities Patch - SMIM
++【农舍屋顶河木镇】UFA - Falkreath - Riverwood Add-On
++【农舍屋顶松木哨塔】UFA - Falkreath - Pinewatch Add-On
++【农舍屋顶半月磨坊】UFA - Falkreath - Half-Moon Mill Add-On
++【农舍屋顶光照网格】UFA - Falkreath - FYX Patch-Parallax-Split Meshes
++【农舍屋顶美化】Unique Farmhouse Architecture - Falkreath
++【风舵城桥美化】The Citadel of Snow - The Windhelm Bridge Reforged
++【裂谷城美化】RYFTEN - Make Your Riften - Inner
++【白漫平原遗迹】Northern Scenery - Whiterun's Tundra
++【伊斯格拉莫古坟美化】Northern Scenery - Ysgramor's Tomb
++【独孤城水井美化】HFs - Solitude Well - Ivy Addon
++【独孤城水井美化】HFs Solitude Well - Water in the well - parallax
++【独孤城水井美化】HFs - Solitude Well - 2K
++【蓝宫网格】Drengin's Blue Palace - Mesh Only Replacer
++【蓝宫庭院美化补丁】Skyfalls BP Courtyard - JKs Blue Palace Patch
++【蓝宫庭院美化补丁】BP Courtyard - Spaghetti's Cities AIO Patch
++【蓝宫庭院美化补丁】Skyfalls BP Courtyard - Immersive Laundry Patch
++【蓝宫庭院美化】Skyfalls Blue Palace Courtyard
++【墓地改造补丁】Sepolcri - DynDOLOD patch
++【墓地改造补丁】Sepolcri - Cutting Room Floor patch
++【墓地改造】Sepolcri - A Complete Burial Sites Overhaul
++【意大利面去除白漫木框】Spaghetti's Cities AIO - No Entrance Totems
++【白漫城水井美化】Ivy - Whiterun - Well Overhaul
++【白漫城塔罗斯美化】SKYKLFS MODULAR WR PT 7
++【白漫城美化前置】SKYKLFS MODULAR WR RESOURCES
++【白漫城墙补丁】Whiterun Has Walls Redone - Patch Hub
++【白漫城墙】Whiterun Has Walls Redone
++【荒瀑古坟塔楼美化】Bleak Falls Tower Addon
++【荒瀑古坟塔楼美化】Bleak Falls Tower Overhaul
++【沼泽地木桥】Northern Marsh Bridges
++【雄伟的城市-冬堡补丁】The Great City of Winterhold Patch Collection
++【雄伟的城市-冬堡】The Great City of Winterhold
++【雄伟的城市前置】The Great Cities - Resources 2k
++【北方城市-冬堡补丁】COTN Winterhold - Laundry Add-on
++【北方城市-冬堡补丁】COTN Winterhold - Spaghetti's Cities AIO Patch
++【北方城市-冬堡补丁】COTN Winterhold Patch Collection
++【北方城市-冬堡补丁】COTN - Missives Patch
++【北方城市-冬堡补丁】COTN - Alternate Start - Live Another Life Patch
++【北方城市-冬堡补丁】COTN Cities of the North Optimized Meshes
++【北方城市-冬堡】COTN - Cities of the North - Winterhold
++【北方城市-晨星补丁】COTN Dawnstar Patch Collection
++【北方城市-晨星网格优化】COTN - Dawnstar
++【北方城市-晨星】Cities of the North - Dawnstar
++【北方城市-墨索尔补丁】COTN Morthal Patch Collection
++【北方城市-墨索尔网格优化】COTN - Morthal
++【北方城市-墨索尔】Cities of the North - Morthal
++【领主长屋美化】】Jarl Longhouse replacer - with decor
++【龙桥镇美化】Simplicity of Settlements - Dragon Bridge
++【兽人聚落美化】Spaghetti's Orc Strongholds - AIO
++【索瑟海姆美化】Spaghetti's Solstheim - AIO
++【村镇美化】Spaghetti's Towns - AIO
++【城市美化】Spaghetti's Cities - AIO
+Obscure's College of Winterhold - Script Fix - cwhcm_setchangeonquestprog_03
++【法师学院美化】Obscure's College of Winterhold
+室外美化_separator
++【小补丁合集】Tiny but Useful - Yet Another Patch Hub
++【小补丁合集】Lil Patches
++【沉睡巨人旅店美化补丁】Ryn's Riverwood Patch Collection
++【沉睡巨人旅店美化】Ryn's Sleeping Giant Inn
++【JK蓝宫优化】Lightened JK's Blue Palace - Ini file only
++【JK蓝宫】JK's Blue Palace
++【JK龙临堡优化】Lightened JK's Dragonsreach
++【JK龙临堡】JK's Dragonsreach
++【JK阴郁堡】JK's Castle Dour
++【JK银血旅店】JK's Silver-Blood Inn
++【JK玛拉神庙】JK's The Temple of Mara
++【JK室内补丁合集】JK's Interiors Patch Collection
++【JK室内补丁合集】JK's Guild HQ Interiors Patch Collection
++【HS美化和室内帧数补丁兼容】HS - SPO Patch AIO (Standalones)
++【JK高吼峰修道院】JK's High Hrothgar
++【JK迪贝拉神庙】JK's Temple of Dibella
++【JK石下要塞】JK's Understone Keep
++【JK鼠道】JK's The Ragged Flagon
++【JK雾隐堡垒】JK's Mistveil Keep
++【JK蜂与勾】JK's The Bee and Barb
++【JK雪瓶】JK's White Phial
++【JK塔洛斯神庙】JK's Temple of Talos
++【JK众王之殿】JK's Palace of the Kings
++【JK战旗母马优化】Lightened JK's The Bannered Mare
++【JK战旗母马旅店】JK's The Bannered Mare
++【JK战争少女武器可偷窃】JK's Warmaiden's Harvestable Statics Patch
++【JK战争少女】JK's Warmaiden's
++【JK河木镇贸易商行】JK's Riverwood Trader
++【HS微风阁EmberXD补丁】HSPlayerHomes - Breezehome - EXD
++【HS微风阁美化】HSPlayerHomes - Breezehome
++【HS甜蜜湾美化】HSPlayerHomes - Honeyside
++【HS安吉灵的芳香美化】HSSolitude - Angeline's Aromatics
++【HS阿沃尔和西格利的家美化】HSRiverwood - Alvor and Sigrid's House
++【HS美化前置】HS Resources
+室内美化_separator
+FYX - VTR - Add-on
+FYX - Vanilla Table Replacers
+FYX x Mihail - Crows and Ravens Windhelm Graveyard
+FYX - Windhelm Graveyard - Parallax
+FYX - Windhelm Entrance
+FYX - Imperial Doors Coll - RCI Patch - Parallax
+FYX - High Hrothgar Steps Col - Skyrim Remastered
+FYX - The first Rampart and Watchtower of Solitude - eFPS PATCH
+FYX - The first Rampart and Watchtower of Solitude - Parallax
+FYX - Eastern Empire Company Building - eFPS PATCH
+FYX - Eastern Empire Company Building - SMIM - Parallax
+FYX - 3D Solitude SighPost - DockRopes
+FYX - Windhelm Stable Roof - Parallax
+FYX - RowBoat
+FYX - 3D Coal in the ElSopa Shovel - New Texture 2K
+FYX - RavenRock Docks and Fences Round Posts - Parallax
+FYX - 3D Shack Kit Roofs
+FYX - 3D Shack Kit Walls - Base Object Swapper
+FYX - 3D Shack Kit Walls - Collision
+FYX - 3D Stockades - Walls and Gate - Parallax
+FYX - 3D Farmhouse Walkway - Parallax
+FYX - Jorrvaskr - Parallax
+FYX - 3D Whiterun Guard Towers - Parallax
+FYX - 3D Whiterun Castle Bridge - 3D Trellis - Parallax
+FYX - 3D Whiterun Drawbridge Gate - Parallax
+FYX - 3D Whiterun Scaffold - Parallax - Gap Reduced
+FYX - 3D Whiterun Tree Circle x 3D Whiterun Trellis
+FYX - SMIM Barrel01 Variant 2K
+3D Nordic Farmfield Stonewalls
+3D Nordic Stonewall Terraces
+JKs Bannered Mare 3D Trellis
+3D Whiterun Trellis Expansion - Wood Trellis
+3D Whiterun Trellis
+FYX - 3D Ragged Flagon Sign Chains - NT Rusty
+FYX - Black-Briar and Riftweald Manors - Parallax
+FYX - Riften Canal and Round Posts - Parallax
+FYX - The Temple of Mara - ENB Light Windows - Parallax
+FYX - 3D Dock Ramp - Parallax
+FYX - 3D Honeyside Deck Floor - SMIM - Parallax
+FYX - Consistency of windows in Riften - JK's The Bee and Barb
+FYX - Consistency of windows in Riften JK's Mistveil Keep
+FYX - Yuril's Additional Resources - Parallax
+FYX - Smooth Wells - Water in Wells - Parallax
+FYX - Dead Skeever - EmbersXD Flames
+Skyrim 3D Docks and Boardwalks
+Optional Round Farmhouse Posts
++【水井模型】Water in Wells - mesh-only animated wells Parallax
++【箱子材质】ALT - Crates - BOS
++【木桶材质】ALT - Barrels - Diversity - BOS - 2K
++【Rudy蜡烛扩展】Rudification - Rudy Candles Expanded
++【骷髅材质补丁】SkeletonReplacer - PatchCollection
++【骷髅材质】Skeleton Replacer HD
++【地精前哨ENB光补丁】Particle Lights for ENB - Riekling Outposts Simplicity of Snow
++【马厩模型】Nordic Imperial Stable Stonewall Replacer
++【手推车材质】Mrf's Carts 2k
++【简单的雪改进-要塞】Simple Snow Improvements - Snow Forts
++【简单的雪改进-巨人方尖石塔】Simple Snow Improvements - Giant Obelisk Fixes
++【简单的雪改进-天际】Simple Snow Improvements - Skyrim Fixes
+Brighter - Snowy White Mountains (Simplicity of Snow)
+Shaders of Solstheim - Ash and Moss
+Simplicity of Snow - Cities of The North
+Simplicity of Snow - Blended Roads Patch
+Simplicity of Snow
++【3D岩石】Skyrim 3D Rocks
++【水】Water for ENB
++【水车材质】Renthal's Waterwheel Remastered
++【海浪补丁】GKB Waves For Various Mods
++【海浪】GKB Waves Reborn
++【水坑】Skyrim SE Improved Puddles
++【熔炉水】Animated Forge Water
++【铁砧材质】ElSopa - HD Medieval Anvil 2k
+Oven Redone Crispy dumplings plus embers XD Patch
+ElSopa - HearthFires Oven Redone
++【饺子材质】Hearthfire Crispy Dumplings - ESL Version
+Higher Poly Vanilla Torch Sconce - Embers XD
+Embers XD - Frozen Electrocuted Combustion Patch
+Embers XD - Campfire Patch
+Embers XD - Legacy Compatibility Patch
+Embers XD
++【吊苔材质】ValArt_hangingmoss_2k
++【法术书材质】DDV - Vergi SpellBooks replace
++【帐篷材质】2K Imperial Tents
++【遗忘山谷传送门材质】Better Forgotten Vale Portal Textures
++【图腾墓碑网格材质】Totemic Tombstones - 2k
++【独特大衮祭坛】Mehrunes Dagon Unique Shrine
++【供品箱网格】Atronach Forge Offering Box
++【大宝箱材质】Better Chest 4K Optimised SSE
++【普通雪地宝箱材质】Medieval Chests HD - SE by Xtudo - SMIM Snowy 2K
++【普通宝箱材质】Lennys Medieval Chest Replacer 2K
++【SMIM宝箱材质】2K SMIM Furniture Chest
++【上古卷轴材质】Praedy elder scroll and elder council amulet replacers
++【矮人控制模块材质补丁】JS Dwemer Control Cube SE - IDG Glow GDPR Patch
++【矮人控制模块材质】JS Dwemer Control Cube SE - 2k Textures
++【矮人调谐球体和词典材质补丁】JS Attunement - Improved Dwemer Glass GDPR Patch
++【矮人调谐球体和词典材质】JS Attunement Sphere and Lexicons SE - 2k Textures
++【矮人魔方材质补丁】JS Dwemer Puzzle Cube SE - Animated Glow GDPR
++【矮人魔方材质】JS Dwemer Puzzle Cube SE - 2k Textures
++【矮人零件材质补丁】JS Dwemer Artifacts SE - RDP IDG Glow GDPR Patch
++【矮人零件材质】JS Dwemer Artifacts SE - 2k Textures
++【矮人桶材质补丁】JS Dwemer Ichor Barrels SE - GDPR Patch
++【矮人桶材质】JS Dwemer Ichor Barrels SE - 2k Textures
++【矮人餐具材质补丁】JS Dwemer Kitchenware SE - GDPR Patch
++【矮人餐具材质】JS Dwemer Kitchenware SE - 2k Textures
++【矮人油材质补丁】JS Dwarven Oil SE - GDPR Patch
++【矮人油材质】JS Dwarven Oil SE - 1k Textures
++【矮人萃取机材质补丁】JS Essence Extractor SE - GDPR Patch
++【矮人萃取机材质】JS Essence and Ash Extractors - 2k Textures
++【矮人聚焦水晶材质补丁】Kanjs - Focusing Crystal Animated - GDPR
++【矮人聚焦水晶材质】Kanjs - Focusing Crystal Animated
++【矮人黄金管道补丁】Golden Dwemer Pipework Reworked - Unofficial Update
++【矮人管道复杂材质】Dwemer Pipework Reworked CPM
++【矮人黄金高面厨具】HP Dwemer Bowls and Pots - Golden Dwemer Pipeworks
++【矮人黄金管道-魔方控制台】Sensible Oculory Solution - Logical Mzark Puzzle - GDPR and IDG
++【矮人黄金管道-吊盆】Sconces of Skyrim - Markarth and Dwemer Braziers Improved - Golden Dwemer Pipeworks Redone Patch
++【矮人黄金管道-马卡斯城】Complex Markarth Fixed AF - GDPR
++【矮人黄金管道-独孤城钟楼】Solitude Clock Tower - GDPR
++【矮人黄金管道-开锁界面】Security Overhaul SKSE - Regional Locks - GDPR
++【矮人黄金管道-开锁界面】Security Overhaul SKSE - Lock Variations - GDPR
++【矮人黄金管道-物件ENB光】Dwemer Tech Glowmapped - ENB Light - GDPR Patch
++【矮人黄金管道-灯笼ENB】Dwemer Lanterns with ENB-Particle Lights - GDPR
++【矮人金色管道-Dac0da】Dac0da - GDPR
++【矮人黄金管道-神光水晶】Particle Lights For ENB Iconic'sGemsPatch - GDPR
++【矮人金色管道】Golden Dwemer Pipeworks Redone - 2K
++【矮人管道材质】Dwemer Pipework Reworked
++【矮人管道网格】Real Dwemer Pipes
++【矮人黄金管道-门】GDOS - Splendid Mechanized Dwemer Door - GDPR
++【门材质】Glorious Doors of Skyrim (GDOS)
++【小型外部世界空间添加阳光和阴影】Shadows Of Sunlight In Small Exterior World Spaces
++【沙利多迷宫修复】Labyrinthian Shalidor's Maze Fixes
++【独孤城窗户材质】Mrf solitude Church windows
++【窗户ENB光】ENB Complex Particle Lights for Windows
++【矮人神光水晶材质】Iconic's Remastered Paragon Gems
++【矮人物件发光纹理】Dwemer Tech Glowmapped
++【矮人灯笼ENB光】ENB-ParticleLights-DwemerLanterns
++【矮人玻璃改进】Improved Dwemer Glass
++【矮人艾瑟瑞姆碎片ENB光】ENB lights for Aetherium Shards SE
++【雪花材质】Better Snow FOMOD
++【星空材质】Rally's Celestial Canvas
++【月亮材质】Blue Moons 2K
++【巫光ENB光】Particle Lights for ENB - Wisps - Witchlight
++【光球ENB光】Particle Lights for ENB - Light Orbs - Motes
++【冰炬ENB光】Particle Lights for ENB - Ice Torches
++【ENB光着色器】ENB Lights For Effect Shaders
++【伐莫坠须ENB光】Particle Lights for ENB - Falmer Drips
++【古代伐莫石板材质】Calcemo's Falmer Stone Tablet 2K
++【微光花朵高模ENB光】High Poly Gleamblossoms - ENB Light
++【精灵幽魂召唤物ENB光】Sprites or Specters - ENB Light
++【地精前哨ENB光】Particle Lights for ENB - Riekling Outposts
++【索瑟海姆蜘蛛ENB光】Spiders of Solstheim - ENB Light
++【晦典副本内物什ENB光】ENB Light for Apocrypha
++【黑境地面覆盖物ENB光】Particle Lights for ENB - Luminous Ground Cover
++【阿祖拉之星内部材质】Azura's Star Dungeon Retexture
++【其他雕像材质】Iconic Statues
++【秩序之神杰盖拉格雕像材质】Shine of Jyggalag 2k
++【阿祖拉雕像】Daedric Shrines - Azura Statue
++【梅瑞狄亚信标ENB光】Meridia Shrine Dungeon ENB PARTICLE LIGHTS
++【梅瑞狄亚信标材质】Grey Beacon
++【梅瑞狄亚童子材质】Daedric Shrines - All in One - Meridia HD pedestal
++【魔神雕像材质合集补丁】Daedric Shrines - All in One - VIGILANT patch
++【魔神雕像材质合集】Daedric Shrines - All in One - 2K
++【混沌之神西帝斯雕像材质】Statue of Sithis 2k
++【娜米拉祭坛导航网格】Daedric Shrines - All in One - Namira Navmeshed patch
++【娜米拉祭坛材质】New Statue of Namira 2K
++【圣灵凯娜瑞丝雕像PBR材质】Statue of Kynareth PBR
++【圣灵凯娜瑞丝雕像材质】Statue of Kynareth
++【圣灵迪贝拉雕像材质】Dibella 2k
++【圣灵玛拉雕像PBR材质】Statue of Mara PBR
++【圣灵玛拉雕像补丁】Mara - My patches SE by Xtudo - VIGILANT
++【圣灵玛拉雕像补丁】Mara - My patches SE by Xtudo - JK's Temple Mara
++【圣灵玛拉雕像补丁】Mara - My patches SE by Xtudo - Alternate Start
++【圣灵玛拉雕像材质】Statue of mara
++【塔洛斯雕像材质】ElSopa - Talos Statue HD Optimized SE
++【王座拓展】Thrones Expanded - Base Object Swapper
++【大酒桶材质】Cisterns of Skyrim - Brewery Cask Replacer
++【大水桶材质】Cisterns of Skyrim - A Rain Barrel and Blood Barrel Replacer
++【蜜酒材质】Vergis open bar
++【酒瓶材质】Vergis wine collection 4k textures
++【麦芽酒材质】Skyland Animated Mead and Ale Bottles
++【暗精灵灯笼材质】Dovahnique's Diverse Dark Elf Lanterns
++【炼金原料材质】Skyking Alchemy Ingredients
++【店铺招牌材质】Skyking Signs
++【巫雅鬼婆帐篷杂物材质】Hovels of Hagravens - 2k 4k mix
++【展示柜材质补丁】SoS Security Overhaul SKSE - Lock Variations patch
++【展示柜材质】Showcases of Skyrim - No Color Variance
++【帐篷材质】Utenlands Nordic Tents - BOS Color Variance
++【普通床材质】Rustic Repose - BOS Color Variance
++【高吼峰家具材质】High Hrothgar Bed Chair and Bench Replacer
++【兽人家具材质】Malacath's Chosen - An Orc Furniture Replacer
++【窄床材质】sothasimp - Cozy Cots - BOS Color Variance
++【矮人床材质】Deep Slumber - BOS New and Timeworn Distributed
++【棺材材质】sothasimp - Comfy Coffins - AIO
++【治疗祭坛材质】sothasimp - On the Mend - Performance Edition
++【铺盖卷材质】sothasimp - Bedroll Alternative - BOS Color Variance
++【椅子材质】sothasimp - The Royal Seat - BOS Color Variance
++【杂物与杂项材质】Oddments and Miscellanea - AIO
++【高级床补丁】sothasimp - Ignoble Beds - JK's Blue Palace 2.0 Patch
++【高级床补丁】sothasimp - Ignoble Beds - Double Beds for Spooning patch
++【高级床材质】sothasimp - Ignoble Beds - Noble and Upper Class Bed Replacer
++【营业账本材质】Business Ledger SD
++【吧台材质】Bar
++【普通方桌材质】HFs - Common table square - 2K
++【战利品台材质】HFs - Trophy Pedestals - 2K
++【床头柜材质】HFs - Upper Nightstand V2 - 2K
++【柜子材质】HFs - Noble chest drawers - remodel - 2K
++【椅子材质】HFs - Simply improved seats - 2K
++【吧台凳材质】HFs - Buttocks rest (BOS) - 2K
++【漏壶材质】HFs - Flagons (BOS) - 2K
++【高级桌子材质】HFs - Noble End Tables - Remodel - 2K
++【桌子去除绳子】2k Common Table replacer optional (No Ropes)
++【桌子材质】Vanilla Table Replacers 2k 1k
++【战旗材质补丁】Rally's Banners of Skyrim Vigilant Patch 2K
++【战旗材质】Rally's Banners of Skyrim 2K
++【地毯材质】RUGNAROK - Special Edition - 2K
++【王座材质】Rally's Enhanced Vanilla Thrones 2K
++【高级家具材质】Rally's Noble Furniture 2K
++【上层家具材质】Rally's Upper Furniture 2K
++【暗精灵家具材质】Rally's Dark Elf Furniture 2K - ENB Light
++【普通家具材质】Rally's Common Furniture
++【高级家具网格】Skyrim Objects SMIMed - Noble Furniture
++【家具材质】RUSTIC FURNITURE - SE - SMIM - 2K
++【家具材质】SMIM Furniture Improvement 2K
++【墨水羽毛材质】Rally's Feather and Ink
++【武器架材质】Rally's Weapon Racks 2K-1K
++【农耕工具材质】Rally's Farming Tools HP
++【箱子材质】Rally's Crates
++【鱼竿材质】Rallys Fishing Pole
++【诺德号角材质】Rally's Nord War Horns
++【吸血鬼药水材质】Kanjs - Potion of Blood Animated
++【魔冰矿床和镐材质】Kanjs - Stalhrim Deposit and Nordic Pickaxe Animated
++【汤和炖菜材质】Kanjs - Soup and Stew All In One Animated
++【丹莫祭坛材质】Kanjs - Dunmer Plinths Shrine Animated
++【特殊书籍材质】Kanjs - Books All In One
++【书籍材质】Book Covers Skyrim SE - Desaturated
++【晦典世界材质补丁】Praedy's Apocrypha Kanj's Chaurus Egg Animated
++【查鲁斯卵材质】Kanjs - Chaurus Eggs Animated and Motion
++【荆棘之心材质】Kanjs - Briar Heart Beating and Animated
++【魔人心脏材质】Kanjs - Daedra Heart Animated and Beating Motion
++【直立根材质】Kanjs - Taproot Animated and Beating Motion
++【牛肉人肉材质】Kanjs - Beef and Human Flesh Animated and Beating Motion2
++【篮子材质】Halffaces - small edit of Baskets - 2K
++【白漫火盆材质】HFs - Whiterun Brazier V1 - 2K
++【白漫长椅材质】HFs - Whiterun Temple bench - 2K
++【蜜酒酿酒罐材质】HFs - Meadery Brewer - remodel - 2K
++【墙体锁扣材质】HFs - Wall Shackle - Remodel - 2K
++【灰烬山药材质】Lennys Ash Yam Replacer 2K
++【粘土砖材质】Lennys Claybrick Replacer 2K
++【大酒壶材质】Lennys Medieval Flagon Replacer 2K
++【木勺材质】Lennys Medieval Ladle Replacer 2K
++【牛奶壶材质】Jug of Milk HD - My version SE by Xtudo - 2K
++【派材质】Lennys Pie Replacer 1K
++【胡萝卜材质】Lennys Parsnip 1K
++【大蒜材质】Lennys Garlic Replacer 2K
++【白菜材质】Lennys New Cabbage Replacer 2K
++【奶酪材质】iimlennys Style Cheesey Eidar Flavored Wheel
++【奶酪材质】Lennys Eidar Cheese Wedge Replacer 2K
++【辫子面包材质】Lennys Braided Bread Replacer 2K
++【奶油美味饼材质】Lennys Butterscotch Cream Replacer 2K
++【木盘子材质】HFs - Diverse Wooden plate - REDONE - 2K
++【唤风者号角材质】HFs Windcaller Horn standalone - 2K
++【巨人烤肉扦和骨头材质】HFs - Spit and Hanging Bones - 2K
++【洋娃娃材质】Halffaces - Doll - 2K
++【鲜肉材质】Halffaces - simple venison retexture
++【马肉材质】Halffaces - Horse meat Update - Desaturated
++【洞穴火盆材质】Halffaces - small edit of Cave Lamps V1 - 2K
++【洞穴火盆材质】Halffaces - Cave lighter - 2K
++【死灵祭台材质】Halffaces - Necromantic Altar - 2K
++【龙裔DLC酒材质】Halffaces - Dragonborn alco AiO - Alternative 1K
++【巨人碗材质】Halffaces - Giant Mortar - 2K
++【羊腿肉材质】Halffaces - simple leg of goat retexture
++【狗肉材质】Halffaces - small edit of Dogmeat - 2K
++【行囊材质】Halffaces - Diverse (BOS) Satchel - 2K
++【海象肉材质】Halffaces - Horker Meat - 1K
++【灯笼材质】Halffaces - Lantern V2 - Rudy candles - 2K
++【餐具食物材质】Basic Dining Set Replacer 2k
++【Rudy银器PBR材质】PBR for Rudy HQ Silverware
++【Rudy银器复杂材质】Rudy HQ - ENB Complex Material Silverware
++【Rudy杂项材质】Rudy HQ - Miscellaneous SE
++【墙篮材质】Improved Wall Baskets - Meshes and Textures2
++【墙篮网格】Higher Poly Vanilla Wall Baskets
++【鱼架材质】Diverse Catches - Base Object Swapper
++【小鱼材质】Specular Mesh Version with Texture Replacer
++【烹饪锅网格】Cooking Pots SMIMed
++【蜂蜜坚果串材质】slightly Better Honey Nut Treat
++【太妃糖材质】Taffy Treats Caramel Flavored
++【葫芦材质】Improved Gourds
++【大葱网格】Leek
++【小麦材质】Sowables of Skryim - Wheat 2K
++【土豆材质】Sowables of Skyrim - Potatoes 2K
++【鸟巢&蛋材质】Bird Hawk Chicken Nests and eggs 2k
++【珍珠材质】Pearls - 4K
++【蛤蜊材质】Clams HD
++【诺德藤壶材质】Nordic Barnacle 2K Version
++【食人鱼卵材质】Slaughterfish Retexture
++【精灵耳材质】KG's Elves Ear Replacer
++【寒霜甘草材质】】KG's Frost Mirriam
++【面包材质】Better Bread 1K Optimised
++【奶酪材质】Pfuscher Style Cheesey Goat Flavored Wheel
++【奶酪材质】Cheese Wedge - Replacer
++【鱼肉材质】New Tasty Food
++【食物和原料材质】High Quality Food and Ingredients SE
++【船只材质】Boreal Boat 2K
++【石柱ENB】Astral Aspect ENB
++【石柱材质】Astral Aspect 2K
++【3D排水口】3D Storm drain grate
++【3D井盖】3D Manhole
++【断头台材质】2k Executioner's Block Less Saturation
++【铁链材质】TB's Metal Chains 2K
++【烟雾材质】TB's Improved Smoke
++【去除刺眼雾气】No Camera Attached Smoke or Fog
++【去除室内雾气】No Floating Fog
++【灰尘材质】slightly Better Dust
++【灰尘材质】TB's Improved Dust Particles
++【麻布袋材质】Sacks Remodeled
++【骨头堆材质】Bone pile - Retexture - Pfuscher
++【风车材质】Diverse Windmill Sails - All Variants
++【磨坊材质】Glorious Grainmills - Parallax
++【焦尸材质】Burnt Corpse Texture Redone 2k
++【工作台材质】Workbench
++【制皮架材质】Tanningrack
++【篮子材质】Realistic HD Baskets Remastered
++【箭靶材质】Archery Target Retexture
++【火烧奥拉夫人偶模型】Better Effigy of King Olaf
++【马车材质】WiZkiD Carriages 2K
++【动物头骨材质】WiZkiD Hagraven Clutter and Bones
++【路标材质】My Road Signs are Beautiful
++【蜡烛角灯材质】SD's Horn Candles SE 2k
++【蜡烛角灯材质】Horncandles.by.Kajuan
++【防腐工具材质】JS Embalming Tools SE - 1k Textures
++【背包材质】JS Knapsacks SE
++【刑具材质】JS Torture Tools SE
++【龙爪材质】JS Dragon Claws 2k Textures
++【灵魂石材质】Remastered Remastered Soul Gems
++【巴兰兹雅王冠宝石材质】JS Barenziah SE - 2K Textures
++【3D硬币堆】Stacks of Septims - 3d Coin Piles
++【钱包金币材质】JS Purses and Septims SE
++【神龛材质】JS Shrines of the Divines SE - 2K
++【英格尔头盔材质】JS Helm of Yngol SE - 2k
++【乐器材质】JS Instruments of Skyrim SE - 2k
++【血石圣杯材质】JS Bloodstone Chalice SE - 2k Textures
++【启蒙水壶材质】JS Initiate's Ewer SE - 2k Textures
++【岩浆材质】Luxury Lava 2K Textures
++【岩浆网格】Luxury Lava - Meshes
++【笼子材质】JS Common Cages SE - 2k Textures
++【雪瓶材质】White Phial Replacer 2K
++【木桶随机旋转】Random Barrel Roll
++【蜜酒桶材质】Arc's MeadBarrel Redux-2k
++【酒桶油桶黄油搅拌机模型】Mead Barrel - Oil Barrel - Butter Churn
++【地图战旗材质】Civil War Map Flag Replacer
++【法术卷轴材质】Retexture for The Scroll
++【纸质地图材质】RUSTIC MAPS - 2K
++【夜莺巨石和物品网格】3D Nightingale Stone and Stuff
++【夜莺巨石材质】Nightingale Hall Standing Stone 2k
++【盗贼标记材质】Shadowmarks
++【男人偶材质】Mannequin Designs - Male Texture
++【女人偶材质】Mannequin Designs - Female Texture
++【人偶材质】Mannequin Designs
++【药水材质】ElSopa - Potions Redone 2k
++【保险箱材质】ElSopa - Safe And Strongbox Redone 2k
++【灵魂石容器材质】ElSopa - Gem Holders Redone 2k
++【阿祖拉之星材质】ElSopa - Azura's Star Redone 2k
++【训练假人材质】ElSopa - Training Dummies Redone 2k
++【纸张材质】ElSopa - Paper HD
++【猛犸奶酪材质】ElSopa Comfy Mammoth Cheese Textures
++【戒指材质】Gemling Queen Jewelry SE
++【水桶材质】ElSopa - HD Buckets 2k
++【大酒杯材质】ElSopa Working Class Tankard 2k
++【蚂蚁材质】ElSopa HD - Ants 2K
++【藤曼材质】ElSopa - Creep Cluster 2k
++【血布材质】ElSopa - HD Better Bloody Rags 1k
++【骷髅钥匙材质】ElSopa - Skeleton Key Redone 2k
++【钥匙材质】ElSopa - HD Keys Redone 1k
++【鼎材质】ElSopa - Kettle 2k
++【磨刀石10倍火花】ElSopa - HD Grindstone Redone - Improved Sparks 10x
++【磨刀石材质】ElSopa - HD Grindstone Redone 2k
++【铁质工具材质】ElSopa - HD Iron Tools Redone 2k SE
++【银质摸具材质】ElSopa - Silver Mold Redone
++【屏幕沙尘材质】ElSopa HD - Dirt Blast 2K
++【画刀材质】Remiros' Draw Knife HD
++【抹布材质】Folded Rag Diversification
++【鹿材质】Deer Reworked - Ultimate
++【壁挂动物头颅材质补丁】More Realistic Fur and Antlers - DTA patch
++【壁挂动物头颅材质】More Realistic Fur and Antlers for Elk Trophies
++【壁挂动物头颅材质】Fluffy Wall Mounted Animal Trophies - BoTN 2K
++【壁挂动物头颅网格】Wall mounted dead animals - Bears of the North
++【北境之熊】Bears of the North
++【毛皮皮革材质】Better Pelts and Hides
++【毛皮材质】Peltapalooza Special Edition
++【法术印记材质】Beautiful Sigils of Shalidor 2k
++【附魔炼金台材质】Enchanting and Revamped Alchemy Tables
++【犬根材质】Subdivide and Smooth - Canis Root - 1k
++【尘堆材质】Remastered Ash Piles Of Skyrim
++【龙裔原料材质】High Poly Dragonborn Ingredients - ENB Lights
++【炼金原料ENB光】Ingredients Particle Lights For ENB
++【冶炼炉补丁】WeldingMans Smelter - EmbersXD Patch
++【冶炼炉材质】WeldingMans Smelter
++【木头材质】Tomato's Wood Overhaul 2K
++【冰洞材质】Vanaheimr - Mines and Caves
++【洞穴材质】Tomato's Caves and Mines
++【冰洞网格】Icy Cave Remaster
++【洞穴视差】Skyrim Remastered - Caves 2K Parallax
++【黑境水晶ERM补丁】ERMed - Iconic's Blackreach Crystals Retexture
++【黑境水晶材质】Blackreach Crystals 2K
++【黑门网格材质】obsidian door
++【堡垒PBR材质】Tomato's Imperial Forts PBR 2k
++【堡垒材质】SRP Dungeons 2K
++【堡垒网格]Imperial Forts - Parallax Meshes
++【月冠ENB光】Particle Lights for ENB - Moon Crests
++【晦典世界视差】Praedy's Apocrypha Complex Parallax textures 2k
++【晦典世界材质】Praedy's Apocrypha 2K
++【松加德传送门材质】Sovngarde Portal Redone 2K
++【松加德雕像材质】Sovngarde Statue 2K
++【松加德材质】WiZkiD HQ Sovngarde
++【石冢模型】slightly Better Rock Cairns Parallax
++【龙石材质】Runic Dragonstone 2K
++【唤风者墓棺材质】Windcaller Tomb And Horn 4K
++【木刺陷阱模型】Wood Wall Trap Mesh and UV Fix
++【矿脉PBR材质】Vanaheimr - Ore Veins - PBR
++【红山岩浆】Subtleties of Skyrim - Red Mountain Lava
++【红山材质】Rudy More dramatic Red Mountain Plume
++【泰尔密希临视差材质】Praedy's Tel Mithryn - SE
++【泰尔密希临视差网格】Tel Mithryn Overhaul - Parallax Meshes
++【索瑟海姆卵提取物材质】Solstheim Spawn Extract re-texture
++【索瑟海姆水母材质】ElSopa HD Strider And Netches
++【索瑟海姆蘑菇树高模】High Poly Solstheim Mushroom Trees
++【索瑟海姆地面视差】Rally's Solstheim Landscapes Complex Terrain Parallax Edition 2k
++【索瑟海姆材质】Rally's Solstheim AIO
++【马卡斯城山体修复】Markarth Extra Mountains Edit - City of Stone
++【马卡斯城美化】Markarth - City of Stone
++【马卡斯城复杂材质】Stony AF Markarth Complex Material
++【马卡斯城材质】Stony AF Markarth and Dwemer Ruins 2K
++【马卡斯城网格】Markarth Fixed AF
++【矮人金属材质】Vanilla Dwemer - GDPR
++【矮人金属材质】Ancient Dwemer Metal - My patches - FINAL SE VERSION
++【矮人金属材质】Ancient Dwemer Metal 2K
++【雪精灵建筑材质】Praedy's Chantry of Auriel AIO - SE
++【瓦奇哈尔城堡材质】Praedy's Castle Volkihar - SE
++【农舍材质】Vanaheimr - Farmhouses
++【灵魂石冢材质】Praedy's Soul Cairn - SE
++【黎明堡垒材质】Praedy's Fort Dawnguard - SE
++【冬堡材质】Praedy's College of Winterhold - SE
++【裂谷城河面树叶PBR材质】TMD The Rift Leaves PBR 2k
++【裂谷城河面树叶】TMD The Rift Leaves 2K
++【裂谷城玛拉神庙修复】Riften Temple Sconce Fix
++【裂谷城圆木高模】Riften Architectural Details
++【裂谷城地面替换】Gravunlom - 2k Parallax
++【裂谷城材质】Tomato's Riften PBR - 2k
++【裂谷城网格】WiZkiD Riften and Ratway 2k Parallax
++【裂谷城网格优化】Better Optimized Riften Meshes Parallax
++【独孤城豪塔别墅视差网格】Proudspire Manor rework - Parallax
++【独孤城白灵房屋视差网格】Bryling's House rework - Parallax
++【独孤城艾瑞库尔家视差网格】Erikur's House rework - Parallax
++【独孤城维多利亚·薇齐房屋视差网格】Vittoria Vici's House rework - Parallax
++【独孤城锦衣服饰店视差网格】Radiant Raiment rework - Parallax
++【独孤城眨眼恶鼠视差网格】The Winking Skeever rework - Parallax
++【独孤城绳索】Solitude Objects SMIMed - festival ropes
++【独孤城市场3D棚】3D Solitude Market Trellis
++【独孤城神庙壁画材质高清】HD Textures for Solitude and Temple Frescoes
++【独孤城神庙壁画材质】Solitude Temple Frescoes - Complete SSE
++【独孤城雕像】Solitude Statues AIO
++【独孤城更好的岩石渲染】Solitude Better Blended Rock Piles
++【独孤城钟塔发光】Solitude Clock Tower - Glow Addon
++【独孤城钟塔】Solitude Clock Tower
++【独孤城风车】Improved Solitude Windmill
++【独孤城部分材质替换】Mrf's Solitude Exteriors - Parallax
++【独孤城材质】Riton's Medieval Solitude 2k
++【独孤城材质】Riton Solitude 2k
++【风舵城火盆材质】Windhelm Brazier Replacer
++【风舵城部分材质替换】Riton windhelm 2k
++【风舵城PBR材质】Ancient AF Windhelm PBR
++【风舵城材质】Ancient AF Windhelm 2K
++【风舵城地面网格】Better Windhelm Ground Meshes - Icy Windhelm
++【风舵城雪地地面】Icy Windhelm
++【风舵城3D栏杆】Windhelm Fences 3D
++【白漫窗户材质】Tomato's Whiterun - Complex Material 2K
++【白漫城墙PBR材质】Tomato's Whiterun PBR 2k
++【白漫城PBR材质】Tomato's Whiterun Remake - PBR - 2k
++【农舍栅栏多样性】Diverse Farm Fences - BOS
++【窗户材质】Rustic Windows 2K
++【高吼峰复杂材质】High Hrothgar v2 - Complex Material - Lite
++【高吼峰材质】Skyrim Remastered - High Hrothgar
++【高吼峰材网格】High Hrothgar Fixed - Parallax
++【天空神庙人头石像网格】】HEAD MESH FIX ONLY
++【天空神庙材质】Riton's Skyhaven Temple 2k
++【兽人长屋补丁】Spice of Life - FYX 3D Patches
++【兽人长屋材质】Spice Of Life - Orc Longhouses
++【遗迹复杂材质】Temples of the Ancients Complex Material
++【遗迹材质】Venerable Nordic Temples - Standard
++【遗迹材质】IWAT Nordic Ruins
++【遗迹碎石堆网格】Nordic Ruins Rubble Pile Mesh Improvement Parallax
++【遗迹视差】Parallax Addon for Rudy HQ Nordic Ruins
++【遗迹材质】Rudy HQ - Nordic Ruins
++【暗精灵瓮材质】HD Dark Elf Urns 2k
++【遗迹陶器材质】】Ancient Pottery
++【遗迹壁画材质】RUSTIC RELIEFS
++【遗迹杂项材质】Ruins Clutter Improved
++High Poly Project Fixes by Xtudo
++High Poly Project
++Skyrim Landscape and Water Fixes
++Assorted Mesh Fixes
++Unofficial Material Fix
++网格材质_separator
++【预设-白精灵】Luna white-elf fix version
++【预设-精灵】Evelyn Eyre Racemenu High poly head preset
++【预设-头部】QingLi
++【预设-至臻】Zhizhen3
++【美化】Zhizhen MakeUP 2K
++【美化】Zhizhen Brows 2K Racemenu
++【美化】HairColourSyncNg
++【美化-魂冢头部预设】Kurone Soul Tomb Racemenu Presets
++【美化-头部预设补丁】Kurone Soul Tomb Racemenu TulliusHair patch
++【美化-精灵】SkFO SE - Skin Feature Overlays- 2K
++【美化-精灵】Dalish Vallaslin Face Tattoo's for Racemenu
++【美化-精灵】(3) Community Overlays 1 - Main - CBBE 2K
++【美化-预设】ILNGary BodyslidePreset
++【美化-至臻】Zhizhen eyes
++【美化-至臻】WhiteDemon Hph nord facepreset
++【美化-至臻】Goam's Elven Ears - Pure Skin
++【美化-至臻】Goam's Elven Ears - Proper RaceMenu Integration
++【美化-至臻】Ancient Beauty Makeup 2K
++【美化-至臻】(2) Community Overlays 2 - Main - CBBE
++人物美化-图留斯发型包Tullius SMP Hair 3 988 (Default Head)
++【功能-前置】High Poly Head - UV Fixed Femalehead.nif
+-自定义-美化_separator
++【高面头模】High Poly Head SE
++【发型】Modular SMP Hairstyles
++【发型】Fuse Hairpack 02
++【发型】KS Hairdos - HDT SMP
++【发型】KS Hairdos
++【发型】SG Hair Pack
++【发型】ApachiiSkyHair
++【国风花钿】
++【纹身】BS-TheHags Body Tattoo
++【纹身】Lyru's Tattoo pack collection 2
++【纹身】Lyru's Tattoo pack collection
++【化妆】RYAmakeup
++【化妆】Lovely Makeup 2 2K
++【化妆】Lovely Makeup 2K
++【化妆】Even More Makeup by Koralina
++【化妆】Female Makeup Suite Face 2K
++【化妆】Koralina's Makeup Tweaks 2k
++【化妆】KML Makeup Suite
++【胡子】Beards of Power - High Poly Head Version
++【原版妆容高清】Vanilla Makeup HD - All Races - 2K
++【眉毛美化】High Poly Pretty Face Darker Eyebrows Standalone
++【眉毛美化】High Poly Pretty Face and Darker Brows Stand Alone
++【眉毛美化】Kalilies Brows high poly head
++【眉毛美化】Koralina's Eyebrows
++【眉毛美化】SG Female Eyebrows - High Poly Head
++【眉毛美化】SG Brows
++【眉毛美化】Hvergelmir's Aesthetics - Brows
++【亚龙人眼睛美化】The Eyes of Beauty - Beast - Revamped
++【兽人眼睛美化】The Eyes of Beauty - Orc - Revamped 2k
++【精灵眼睛美化】The Eyes of Beauty - Elven - Revamped 2k
++【吸血鬼眼睛美化】The Eyes of Beauty - Vampire - Revamped 2k
++【眼睛美化】The Eyes of Beauty - Revamped 2k
++【眼睛美化】Nouveaux Eyes Of Beauty - 2k
++【眼睛美化】Eyes Nouveaux
++【眼睛美化】The Eyes of Beauty Ai - Standalone Textures
++【眼睛美化】Tullius Eyes Pack
++【眼睛美化】Mikan Eyes AIO - Enhanced
++【改良的眼睛网格】Improved Eye
++【夜母美化】Night mother
++【男性皮肤】BnP male skin (Replacer+Player version)
++【男性HIMBOBS】HIMBO V5 - BG-DG-DB Refits
++【男性HIMBO身形】HIMBO V5 - Core
++【新绅士】The New Gentleman
++【亚龙人美化补丁】CotH - HIMBO - SoS Textures
++【亚龙人美化补丁】CotH - Vanilla Body - Better Male Feet Patch
++【亚龙人美化】Children of the Hist
++【更好的亚龙人角补丁】Better Argonian Horns for High Poly Heads
++【更好的亚龙人角】Better Argonian Horns
++【猫人美化】Terre's Body Fur Textures AIO - 2K
++【猫人美化】CoverKhajiits 2K
++【儿童美化黑脸修复】The Kids Are Alright Default Kid Loose Files
++【儿童美化补丁】The Kids Are Alright Renewal Patch Pack
++【儿童美化】The Kids Are Alright Renewal
++【大小姐兜帽移除】Serana's Hood Fix
++【大小姐美化】Serana Re-Imagined
++【瓦蕾莉卡美化】Valerica SSE
++【诺克图娜尔美化】Umbral Embrace - A Nocturnal Replacer
++【艾利西弗美化】Elisif replacer
++【黑荆棘玛雯美化】Pandorable's Black-Briar Ladies
++Bijin Family - CBBE 3BA (3BBB) Bodyslides
++Bijin AIO SE for USSEP
++Bijin NPCs
++Bijin Wives
++Bijin Warmaidens
++Pandorable's big overhauls AIO
++Pandorable's female NPCs
++Kalilies NPCs - Cutting Room Floor Patch
++Kalilies NPCs
++Pandorable's NPCs - Males 3
++Pandorable's NPCs - Males 2
++Pandorable's NPCs - Males
++Pandorable's NPCs - Sovngarde
++Pandorable's NPCs - Dragonborn
++Pandorable's NPCs - Dawnguard
++Pride of Skyrim - AIO Male
++Modpocalypse NPCs (v3) SSE
++Modpocalypse NPCs - All Vanilla NPCs
++Modpocalypse NPCs - Resources
++【胡须】Hvergelmir's Aesthetics - Beards
++【木精灵长有鹿角】Bosmer NPCs have Antlers
++【真实的伐莫和乌鸦鬼婆皮肤着色】Realistic Skin Shaders- Falmer and Hagraven
++【真实的巨人皮肤毛发着色】Realistic Skin and Hair Shaders - Giants
++【捏脸可旋转角色】Player Rotation in ShowRaceMenu
++【改进的眼部网格】Improved Eye Model 1K
++【条件面部表情】Conditional Expressions
++【男性生动的表情】Expressive Facial Animation - Male Edition
++【女性生动的表情】Expressive Facial Animation - Female Edition
++【兽人牙齿美化】Immersive Mouth and Teeth for Orcs
++【牙齿美化】BnP teeth overhaul
++【富有表现力的脸部变形】Expressive Facegen Morphs SE
+-OverlayFixAndOtherFixes
+-【RM内存泄漏修复】RaceMenu Memory Leak Hotfix
+-【RM捏脸系统】RaceMenu Special Edition
++RM菜单内存泄露修复-RaceMenu 0.4.16 Memory Leak Hotfix (SE)
++【RM捏脸拓展】COR MAIN - CBBE SE Rel
++RM捏脸菜单-RaceMenu Special Edition
++【独立种族兼容以及修复模组】RaceCompatibility with fixes for SSE
++人物美化_separator
++【毛茸茸的猫】House Cats - My version SE by Xtudo - FluffyC 2K
++【猫猫多样化】House Cats - My version SE by Xtudo - HeadT
++【猫猫】house cats (se-ae) 1.1
++【所有狗使用哈士奇叫声】RealisticDogSoundsSSE esl
++【哈士奇叫声】Realistic Husky Sounds SE
++【狗狗材质】Skyrim Snow Dogs
++【小精灵】Fairies ESL
++【蘑菇甲虫发光】Fancy Glowy Shrooms Beetles
++【蘑菇甲虫】Shroom Beetles
++【青蛙发光】Fancy Glowy Frogs
++【青蛙低模】Mihail Frogs - Optimized Low Poly Meshes
++【青蛙材质】Frogs (se-ae)- 2k textures
++【遗忘山谷守卫】Forgotten Vale Guardians
++【暗影掠夺者】shadow predators and skeletal vampires (se-ae)
++【亡灵狼人】undead werewolves (se-ae)
++【墓主】Gravelords (SE-AE)
++【被覆盖的变得更肥更可爱】THICCER 'n' THICCER
++【渡鸦和乌鸦补丁】Crows and Ravens - COTN Combo Patch
++【渡鸦和乌鸦】Crows and Ravens (SE-AE)
++【疾驰蜥蜴】scuttlers (se-ae)
++【海龟】Sea Turtles (SE-AE)- 2k textures
++【仓鸮】barn owls (se-ae)
++【鸽子】pigeons
++【海尔辛材质】More Hircinic Aspects of Hircine (se-ae)
++【兔子材质】Rabbit replacer
++【风干兔材质】Hanging Dead Rabbit Replacer
++【野鸡材质】Ring necked pheasants
++【风干野鸡材质】hanging dead pheasant replacer (se-ae)
++【鸡和小鸡】chickens and chicks (se-ae)
++【鹰材质】Birds of Prey and Felsaad Terns (se-ae)
++【骨鹰材质】bone hawks replacer sse
++【毛茸茸的猛犸象】Mammoth Expansion - Fluffy
++【猛犸象材质】Mammoth Expansion (SE-AE)
++【毛茸茸的山羊】Goat With Bell
++【毛茸茸的奶牛】Cow - Mihail Animal Fluffy
++【奶牛材质】Cow replacer (se-ae)
++【卡斯塔格材质】Frost Giant Overhaul
++【更肥的巨魔】Corpulent Trolls
++【巨魔材质】Troll.by.Kajuan
++【伐莫系列物品材质】HD Falmer and Chaurus with Glow - xTxVxTx
++【伐莫材质】Falmer.by.Kajuan
++【伐莫语音】talkative falmers se-ae
++【乌鸦鬼婆语音】talkative hagravens
++【乌鸦鬼婆材质Hagraven.by.Kajuan
++【幽魂之母材质】Wispmother.by.Kajuan
++【巨人材质】Giant.by.Kajuan
++【剑齿虎材质】SABRECAT.by.Kajuan
++【尸鬼材质】Draugrs
++【尸鬼大修】D.U.I. SE
++【树精材质】Iconic's Spriggan Retexture 2K
++【狼人熊人材质】Iconic's Werewolf and Werebear Retexture 2K
++【吸血鬼大君材质】Iconic's Vampire Lord Retexture 2K
++【灰烬守卫材质】Ash Guardian 2K
++【石元素材质】Stone Atronach 2K
++【冰雷元素材质】Flame - Storm Atronach Retexture
++【火焰元素】Flame Atronach
++【冰霜怨灵材质】Ice Wraiths 2K
++【巴巴斯材质】Unique Barbas
++【更大的龙】Majestic Dragons Glorious
++【奥杜因材质】Dreadful Alduin 8K
++【度尼维尔材质】Durnehviir Redone Graphics only
++【龙骨材质】2K Dragon Skeleton
++【龙材质】GoT Dragons 4K
++【龙材质】GoT Dragons-Enemy
++【龙材质】GoT Dragons-Ally
++【龙材质】DragonsSE-with-low-res-textures
++【龙骨材质】GoT HotD - Skeletal Dragon
++【多样化的龙材质】GoT HotD Dragons - DDCSE replacer - half sized textures
++【多样化的龙】Diverse Dragons Collection SE
++【狐狸材质】Fluffworks - Better Photoreal Foxes
++【蜘蛛材质】Iconic's Spiders of Skyrim
++【蜂壳材质】Husk Replacer - Pfuscher
++【蜂蜜罐材质】Rally's Honey Pot HP
++【蜂箱材质】Apiaries Beehives
++【蜜蜂蜂巢材质】Rally's Bees and More
++【蝴蝶材质】SpiRally's Beautiful Butterflies Enhanced
++【添加蝴蝶和飞蛾】More Butterflies and Moths
++【蝴蝶降落】Butterflies Land True
++【萤火虫材质】Rally's Torchbugs
++【蜻蜓材质】Improved Dragonfly
++【马匹材质】SC_HorseReplacer
++【动物绒毛】Fluffworks Medium
++XPMSSE Left Hand Skeleton Rotation Fix
++XP32 Maximum Skeleton Special Extended
++生物_separator
++【功能】菜单显示玩家Show Player In Inventory
++Photo Mode CHS
++Oathvein UI
++Vel'dun UI - Wheeler
++Vel'dun UI - Patches
++Vel'dun UI - Overhauls
++Vel'dun UI
++Modern Wait Menu-CHS
++Modern Wait Menu
++Oblivion Interaction Icons
++Casting Bar
++Tween Menu Overhaul CHS
++Tween Menu Overhaul - Classic
++Hot Key Skill
++【万象移动】True Directional Movement
++【随从属性】Follower Stats
++【照片模式】Photo Mode
++【照片模式图标】ImGui Icons
++【快速拾取菜单】QuickLoot IE - A QuickLoot EE Fork
++Contextual Crosshair
++STB Active Effects
++STB Widgets
++【加载界面背景】Beautiful Artistic and Lorefriendly
++【去除原版加载界面】Vanilla LS Remover
++【技能树背景】Ethereal Skill Menu Overhaul
++【地图标志补丁】CoMAP Compass Navigation Overhaul Patch
++【地图标志补丁】CoMAP 4.0 for Skyrim 1.5
++【地图标志】CoMAP
++【对话镜头】Alternate Conversation Camera
++【取消家具镜头】No Furniture Camera
++【待机镜头抖动】Camera Noise
++【对话可以切换人称】Switch Camera During Dialogue
++【改进的相机补丁】Improved Camera Patch Collection
++【改进的相机】Improved Camera SE
++【平滑的相机】SmoothCam
++【开锁界面】Security Overhaul SKSE - Extra Locks
++【开锁界面】Security Overhaul SKSE - Regional Locks
++【开锁界面】Security Overhaul SKSE - Add-ons
++【开锁界面】Security Overhaul SKSE - Lock Variations
++【武器轮盘】Wheeler
++【氧气条】OxygenMeter2
++【警戒条】Detection Meter
++【时间格式】Time Format Changer
++【UI音效】MEMOSPORE - UI Sound Effects
++【角色菜单】Character Menu SE
++【自定义技能菜单图标】Custom Skills Menu - Icon Replacers
++【自定义技能菜单 - 格伦茉莉】Custom Skills - GLENMORIL
++【自定义技能菜单 - 警戒者】Custom Skills - VIGILANT
++【自定义技能菜单 - 龙裔】Custom Skills - Dragonborn Shouts
++【自定义技能菜单】中文图标兼容补丁
++【自定义技能菜单】Custom Skill Menu
++【自定义技能框架】Custom Skills Framework
++【改进的指南针】Compass Navigation Overhaul
++【无限UI】Infinity UI
++【真实的HUD】TrueHUD
++【快速翻页】Convenient Reading
+A Matter Of Time - Settings Loader
++【时钟插件】A Matter Of Time
++【菜单女仆】Menu Maid - MCM manager
++【天际UI小部件扩展】iWant Widgets
+moreHUD Inventory Edition Loose Version - Pre AE
+moreHUD SE - Legacy Settings Loader
+moreHUD SE
+SkyHUD
+SkyUI 5.2
+dMenu
++【主菜单视频】Nordic Campfire Chant Ambient Sound Only
++【主菜单可播放视频】Main Menu Video
+UI镜头_separator
++【天际攀爬潘多拉补丁】SkyParkour V3 - Pandora Patch
++【天际攀爬】SkyParkour V3 - Parkour Framework
++【方典按钮优化】Sensible Oculory Solution - Logical Mzark Puzzle
++【通过钥匙孔偷窥室内】Take a Peek
++【地毯可交互】JS Rumpled Rugs SE（主角会摔倒）JS Rumpled Rugs SE
++【西部哨塔随时间重建】Environs - The Western Watchtower
++【Environs系列前置】Environs - Master Plugin
++【索瑟海姆阔步沙蚤】Striding Silt Strider
++【有组织的强盗补丁】OBIS SE - Missives - Addon - CN 1.30
++【有组织的强盗】Organized Bandits In Skyrim
++【NPC对裸体反应】Naked Comments Overhaul
++【NPC被弓箭瞄准会恐慌】Scared of Shootings - NPCs react to aiming bows
++【NPC对狂乱术反应】NPCs React To Frenzy
++【NPC对死灵法术反应】NPCs React to Necromancy
++【NPC佩戴玛拉护符】NPCs Wear Amulets of Mara
++【打架对话扩展】Brawl Lines Expansion
++【吸血鬼语音扩展】Vampire Lines Expansion
++【弃誓者和梭默语音扩展】Forsworn and Thalmor Lines Expansion
++【守卫对话扩展】Extended Guard Dialogue
++【守卫语音扩展】Guard Dialogue Overhaul - ESL
++【车夫对话扩展】Carriages and Stables Dialogue Bundle
++【强盗对话扩展】Extended Bandit Dialogue
++【强盗语音扩展】Bandit Lines Expansion
++【睡觉打扰扩展】Sleeping Expanded
++【作为吟游诗人表演】Skyrim's Got Talent - Improve As a Bard
++【信仰之跃】Leaps of Faith
++【沉浸式拒绝】Immersive Rejections
++【沉浸式交互】Immersive Interactions - Animated Actions
++【贿赂基于口才等级】Sensible Bribes
++【悬赏告示板材质】Missives - The Witcher Board HD
++【悬赏告示板补丁】Missives - Solstheim Patch SE
++【悬赏告示板灌木移开】Missive Board Whiterun - Move That Freaking Shrub
++【悬赏告示板】Missives 2.03 SSE
++【晾衣动态效果】Immersive Laundry - Animated
++【更好的晾衣】Laundry Improvements
++【身临其境的晾衣】Immersive Laundry
++【身临其技的居民】Immersive Citizens - AI Overhaul
++【猫人游商营地】Khajiit Has Wares(esp放在Ember上）
++【用扫帚清理杂乱】Sweeping Organizes Stuff - Use Broom to Clean Mess
++【关系对话改进】Relationship Dialogue Overhaul
++【NPC遇龙或吸血鬼逃命】Run For Your Lives
++【NPC不会在背后打招呼】To Your Face SE
++【NPC同步主角步伐】Run and Walk at your Pace
++【吸血鬼没有影子】Vampires Cast No Shadow
++【熊孩子可杀】Slayable Offspring SKSE
++【暖手】Warming Hands
++【天际警钟】Bells of Skyrim
++【商店铃铛】Store Entrance Doorbells
++【上床睡觉DAR补丁】Go To Bed - DAR Sleeping Expanded - PLAYER NPCs
++【上床睡觉DAR】Go To Bed - DAR patch SE PLAYER and NPCs
++【上床睡觉补丁】Go to bed-se-patches
++【上床睡觉】Go to bed-se
++【打盹ALT+E】Take a Nap
++【坐在物体上】Sit on Stuff
++【摇晃船只补丁】Realistic Boat Bobbing - USSEP Patch
++【摇晃船只】Realistic Boat Bobbing SE
++【水中行走减速】Wade In Water Redone
++【水中行走减速】Loki_WadeInWater
++【水面爆炸效果】Splashes of Skyrim
++【下水湿身】Soaking Wet
++【洗掉血迹】Wash That Blood Off 2
++【流星预设保存】Shooting Stars SE - Settings Loader
++【流星】Shooting Stars SE
++【彩虹】Rainbows Remade
++【暴雨飞溅】Splashes Of Storms
++【打雷闪电】Storm Lightning for (Minty Lightning 2019)
++【沙地脚印】Footprints Sand Patch 0.9
++【雪地脚印修复】Footprints Bright Snow fix
++【高跟鞋脚印】Footprints - Heels Addon
++【SPID脚印修复】Ultimate fix - SPID for Footprints
++【SPID脚印】SPID for Footprints
++【脚印】Footprints
++【火烤食物】Cooking with Fire
++【篝火】Campfire
++【瑟拉娜对话大修】Serana Dialog Edit
+沉浸感_separator
++【舞蹈】Lets Dance Again Goroshi
++【功能】ScreenArcherMenuSkyrim
+-【功能-闲置动作】Gulan0-Idle action-OAR-player
++Gulan0-Idle action
++【功能-动作】Gulan0-All the jumps_legs together-OAR
++NPC管理器进阶
++【功能-幻化装备】Skyrim Vanity System 1.4.10
++【功能-幻化装备】Dynamic Armor Variants Extended
+-自定义-功能_separator
++【喝药】Swift Potion NG
++【重生模组】Stages of Suffering
++【重生模组】ResurrectionAPI
++【敲锁】Lock Bashing
++【打字禁用快捷键】Typing Mode（默认F4）
++【动态位置弹窗】Dynamic Location Popups
++【多行字幕显示】Subtitles
++【沉浸式装备显示汉化】Immersive Equipment Displays Chinese translation
++【沉浸式装备显示】Immersive Equipment Displays
++【双持背盾】Simple Dual Sheath
++【更好的抓取】Better Grabbing
++【随身商人-按R丢弃使用】Portable Seller
++【商人出售基础补给品】Essential Supplies - SkyPatcher
++【商人金币调整】Better Dremora Merchant and merchant gold tweaks
++【NPC获得药水附魔效果】Enchantments and Potions Work for NPCs
++【更好的第三人称选择】Better Third Person Selection
++【动态物体交互】Dynamic Things Alternative - Base Object Swapper
++【动态碰撞体积】Dynamic Collision Adjustment
++【自动隐藏箭袋】Unequip Quiver NG
++【NPC服装管理】Simple Outfit System
++【口哨唤马】Animated Whistling
++【马更好转向】Horses Simply Turn Better
++【龙立即死亡】Dragons Fall Down
++【取消支付赏金后传送】No Crime Teleport SE
++【未读的书籍发光】Unread Books Glow Redone
++【最爱物品不可出售丢弃】Essential Favorites
++【最爱物品扩展】Favorite Misc Items
++【巴兰兹雅宝石任务标记】Stones of Barenziah Quest Markers
++【龙爪自动开门】Dragon Claws Auto-Unlock (Simultaneous)
++【经验加倍】Experience Multipliers
++【解除附魔限制】No Enchantment Restriction Remake
++【附魔特效补丁】Vibrant Weapons EAE - Animated Armoury Patch
++【附魔特效】Vibrant Weapons EAE
++【附魔拓展补丁】Vibrant Weapons - EAE (Updated Configuration)
++【附魔拓展SE】Enchantment Art Extender for Skyrim 1.5
++【附魔拓展】Enchantment Art Extender
++【快速照明魔法灯替换】QuickLight - LightMagic - Patch
++【快速照明预设保存】Quick Light SE - Settings Loader
++【快速照明】Quick Light SE
++【快速传送】Unlimited Fast Travel
++【高清本地地图】Local Map Upgrade 3.1.0
++【Fuz Ro D'oh】SE中文调整版
++【控制台选中高亮】Console Commands Extender
++【控制台命令复制粘贴】ConsolePlusPlus
++【更多控制台信息】More Informative Console
++【库存信息扩展】Inventory Interface Information Injector (SE)
++【脚本可执行控制台命令】ConsoleUtilSSE NG
++【去除傻瓜物理碰撞伤害】No Silly Physics Damage
++【去除径向模糊】No More Radial Blur
++【中文输入】Skyrim Input Method
++【装备获取菜单】AddItemMenuSE
+实用插件_separator
++【主角语音】PC Head Tracking - MCM v4.8 SE
++【矮人遗迹音效】Dwemer Imperium - Machina
++【龙语墙音效】Dragon Voiced Word Walls
++【药水音效】Magical Potion Sounds
++【水下和游泳音效】Underwater Loop and Swimming Sounds
++【沼泽地音效】The Haunting Harmonies of Hjaalmarch
++【石柱音效】The Standing Sound Stones
++【城镇音效】The Sounds of Towns and Cities
++【远处滚雷音效】Distant Rolling Thunder
++【鬼船音效】Haunted Shipwrecks
++【火焰音效】Crackling Fire
++【酒馆音效】Murmurs and Mead
++【黑境音效】Blackreach Eerie Ambience
++【水音效】Babbling Brooks - A Water Audio Overhaul
++【瓦奇哈尔城堡音效】Volkihar Soundscape Overhaul
++【索瑟海姆音效】Solstheim Exterior Soundscapes
++【晦典世界音效】Whispering Tomes of Apocrypha
++【灵魂石冢音效】Revenant Spirits of the Soul Cairn
++【寒风音效】Nordic Winds
++【鲸鱼音效】Whales Off The Coast
++【树木回响音效】Wildwood Echoes
++【鸟叫声】Murder of Songbirds
++【波特玛女王声音替换】Potema Revoiced - WAV Format
++【雪精灵大祭司声音替换】Arch-Curate Vyrthur Revoiced
++【独特的渲染音效】Unique Shaders Sound FX
++【梅法拉声音替换】Mephala Revoiced
++【诺克图娜尔声音替换】Nocturnal Revoiced
++【海尔辛声音替换】Hircine Revoiced
++【阿祖拉声音替换】Azura's Audio Array
++【梅瑞狄亚声音替换】Meridia Revised - A New Voice
++【女孩海尔吉幽魂音效】Ghostly Helgi
++【尸体旁苍蝇声】Flies around corpses (SE-AE)
++【鸟叫声】Ambient Bird Sounds Expanded
++【雪地音效】Snowy Surfaces Sound Collision and Aesthetics
++【光脚脚步音效】Barefoot Footstep Extended SE
++【主角龙吼音效】Thundering Shouts (Normal pitch)
++【龙音效】Dragon Vocal Replacer
++【龙音效】Wyrm - The Ancient Ones
++【弓弩箭音效】Deadeye - Bow and Crossbow SFX
++【盾牌音效】Bulwark Shield Sounds
++【魔法音效】Sonorum Arcana - Magic SFX Compendium
++【魔法音效】Castigate - Next gen Magic SFX
++【森林氛围音效】Pinewood Tone
++【索尔海姆潜伏着音效】Depths of Apocrypha - Lurker VSFX Rework
++【狼人音效】Skoll - Werebeast Audio
++【猛犸象音效】Mastodon - Mammoth Audio
++【巨模音效】Grendel - Troll Audio
++【树精音效】Oread - Spriggan SFX Rework
++【尸鬼音效】Aptrgangr - Draugr Voices
++【拳击音效】Seismic Tide - Skullbreaker Fists
++【钝器音效】Skullbreaker - Blunt Weapon SFX Overhaul
++【挥砍音效】Bleeding Edge
++【音效合集】Phoenix Compendium
++【AIO-ISC】Audio Overhaul Skyrim - Immersive Sounds Compendium Integration
++【ISC补丁】ISC Mysticism - A Magic Overhaul Patch
++【ISC】Immersive Sounds - Compendium
++【AIO】Audio Overhaul for Skyrim (4.1.2)
++【吟游诗人歌曲】BA Bard Songs
++【天际音乐】LORKHAN - Soundtrack Replacer
++【天际音乐】Songs to Play Skyrim
++【天际音乐】Around the Fire
++【天际音乐】Chapter II v3.6 - ESL
++【天际音乐】Immersive Music
++【NPC对话音量增强】NPC Dialogue Audio Enhancer
++【高清原版NPC语音】Voices EN - Part 2
++【高清原版NPC语音】Voices EN - Part 1
+Regional Sounds Expansion (2.1.0)
+Acoustic Space Improvement Fixes - SkyPatcher
+Reverb Interior Sounds Expansion
+Sound Record Distributor
++【女主控语音替换】PC Head Tracking Voice - Lucina
++【高跟音效】Better Heels Sounds FX 1.0.6
++【高跟音效】Heels Sound 1.5 SSE
+音频_separator
++【渗透任务扩展】Infiltration - Quest Expansion
++【裂谷城孤儿院任务扩展】The Innocence Lost - Quest Expansion
++【天际内战对话扩展】Civil War Lines Expansion
++【低语之门任务扩展】The Whispering Door - Quest Expansion
++【恐惧之屋任务扩展】House of Horrors - Quest Expansion
++【尼尔海姆强盗事件扩展】Nilheim - Quest Expansion
++【帕图纳克斯任务扩展】Paarthurnax - Quest Expansion
++【DAc0da语音】DAc0da - ElevenLabs Voiced
++【Dac0da】
++【安斯拉德护甲BS】Unslaad 3BA Bodyslide
++【安斯拉德乌露莉丝美化】wululizi by mxlylyly
++【安斯拉德武器护甲材质】Unslaad Weapons and Armors Retexture SE
++【安斯拉德语音】Unslaad - ElevenLabsV3 Voiced
++【安斯拉德语音】Unslaad Voiced - English Addon SE
++【安斯拉德】Unslaad SE
++【格伦茉莉材质】Glenmoril HIResPack Creatures
++【格伦茉莉材质】Glenmoril HIResPack Armors and Weapons
++【格伦茉莉材质】Glenmoril HIResPack Architecture and Landscape
++【格伦茉莉书籍材质】Glenmoril - Book Covers
++【格伦茉莉枪替换】Glenmoril Gun Replacer 2K
++【格伦茉莉武器护甲材质】Glenmoril Armors and Weapons Retexture SE
++【格伦茉莉语音】GLENMORIL ElvenLabs Voiced
++【格伦茉莉】GLENMORIL
++【警戒者诗人匕首替换】Vigilant - Xtudo SE - Bard's Dagger
++【警戒者死肉堆材质】Vigilant DeadPile Flesh 2k
++【警戒者乌玛瑞尔盔甲材质】HD Vigilant Project - Umaril
++【警戒者莫拉格巴尔龙材质】Vigilant's Molag Bal Dragon Retexture SE -2K
++【警戒者枪替换】Vigilant Gun Replacer 2K
++【警戒者书籍材质】Vigilant - Book Covers
++【警戒者材质】VIGILANT HiRes Pack 181
++【警戒者拉玛耶美化】Pure Lamae Replacer
++【警戒者NPC美化】VIGILANT - NPC Overhaul
++【警戒者语音】VIGILANT - English Translation SE (Voiced)
++【警戒者】VIGILANT SE 181
++【天际滑翔伞】Skyrim's Paraglider（福克瑞斯下面）
++【不一样的人生音效补丁】ASLAL Voice Pack
++【不一样的人生扩展】Alternate Start New Beginning
++【不一样的人生】Alternate Start - Live Another Life
+任务扩展_separator
+Skeleton Auto Patch
+Pandora Behaviour Engine Standalone
+Bodyslide Output
+BodySlide and Outfit Studio
+BS&潘多拉_separator
+SkyPatcher - SE
++【Silver Objects SMIMed】
++【SMIM】Quality Addon
++【SMIM】Mod Improvement Mod
++【SMIM】Static Mesh Improvement Mod
+DynDOLOD DLL NG and Scripts 3.00
+DynDOLOD Resources SE
+Native EditorID Fix (Skyrim 1.5)
+FormList Manipulator - FLM
+Playground
+NL_MCM_SSE
+MCM Helper SE
+UIExtensions
+JContainers SE
+FISSES - FileAccess Interface for Skyrim SE Scripts
+Dynamic String Distributor
+Base Object Swapper
+Anim Object Swapper
+Spell Perk Item Distributor
+powerofthree's Papyrus Extender
+powerofthree's Tweaks
+ScaleformTranslationPP
+PapyrusUtil SE - Scripting Utility Functions
+Address Library for SKSE Plugins
+Cutting Room Floor
++【BEES】Backported Extended ESL Support
++【非官方补丁】Unofficial Skyrim Special Edition Patch
+前置_separator
+*Creation Club: ccbgssse025-advdsgs
+*Creation Club: ccBGSSSE037-Curios
+*Creation Club: ccqdrsse001-survivalmode
+*Creation Club: ccbgssse043-crosselv
+*Creation Club: ccedhsse002-splkntset
+*Creation Club: ccffbsse002-crossbowpack
+*Creation Club: ccbgssse002-exoticarrows
+*Creation Club: ccbgssse004-ruinsedge
+*Creation Club: ccbgssse007-chrysamere
+*Creation Club: ccbgssse014-spellpack01
+*Creation Club: ccbgssse019-staffofsheogorath
+*Creation Club: ccbgssse031-advcyrus
+*DLC: Dawnguard
+*DLC: Dragonborn
+*DLC: HearthFires
+*Unmanaged: _ResourcePack
+*Unmanaged: ccbgssse001-fish`;
+
+        let parsedGroups = [];
+        let totalMods = 0;
+        let enabledCount = 0;
+        let disabledCount = 0;
+        let specialCount = 0;
+        let currentFilter = 'all';
+
+        function parseList() {
+            const lines = rawModList.split('\n');
+            parsedGroups = [];
+            let currentItems = [];
+
+            totalMods = 0;
+            enabledCount = 0;
+            disabledCount = 0;
+            specialCount = 0;
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) return;
+
+                // When encountering a separator, assign all preceding collected items to this separator's name
+                if (trimmed.endsWith('_separator')) {
+                    const sepName = trimmed.replace('_separator', '').replace(/^[+-]/, '').trim();
+                    parsedGroups.push({
+                        name: sepName || '未命名分类',
+                        items: currentItems
+                    });
+                    currentItems = [];
+                    return;
+                }
+
+                let status = 'enabled';
+                let rawStatus = trimmed.charAt(0);
+                let name = trimmed;
+
+                if (rawStatus === '+') {
+                    status = 'enabled';
+                    name = trimmed.substring(1);
+                    enabledCount++;
+                } else if (rawStatus === '-') {
+                    status = 'disabled';
+                    name = trimmed.substring(1);
+                    disabledCount++;
+                } else if (rawStatus === '*') {
+                    status = 'special';
+                    name = trimmed.substring(1);
+                    specialCount++;
+                } else {
+                    status = 'enabled';
+                    enabledCount++;
+                }
+
+                totalMods++;
+                currentItems.push({ raw: trimmed, name, status });
+            });
+
+            // Handle any remaining items after the last separator (e.g. Creation Club / DLC / Unmanaged mods)
+            if (currentItems.length > 0) {
+                parsedGroups.push({
+                    name: 'DLC / CC / 原生模组',
+                    items: currentItems
+                });
+            }
+
+            // Update stats DOM
+            document.getElementById('statTotal').innerText = totalMods;
+            document.getElementById('statEnabled').innerText = enabledCount;
+            document.getElementById('statDisabled').innerText = disabledCount;
+            document.getElementById('statSpecial').innerText = specialCount;
+
+            // Set raw text view
+            document.getElementById('rawOutput').textContent = rawModList;
+        }
+
+        function renderVisualView(searchTerm = '') {
+            const container = document.getElementById('visualView');
+            container.innerHTML = '';
+
+            parsedGroups.forEach((group, index) => {
+                const filteredItems = group.items.filter(item => {
+                    const matchesFilter = (currentFilter === 'all') || (item.status === currentFilter);
+                    const matchesSearch = !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase());
+                    return matchesFilter && matchesSearch;
+                });
+
+                if (filteredItems.length === 0 && searchTerm) return;
+
+                const groupEl = document.createElement('div');
+                groupEl.className = 'bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden transition';
+
+                const groupId = `group-${index}`;
+                
+                groupEl.innerHTML = `
+                    <div class="group-header px-4 py-3 bg-slate-800/50 hover:bg-slate-800 border-b border-slate-800 cursor-pointer flex items-center justify-between transition" onclick="toggleGroup('${groupId}')">
+                        <div class="flex items-center gap-2.5">
+                            <svg id="arrow-${groupId}" class="w-4 h-4 text-amber-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                            <span class="font-semibold text-sm text-slate-200">${group.name}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono">${filteredItems.length} 项</span>
+                        </div>
+                    </div>
+                    <div id="${groupId}" class="group-content p-2 space-y-1">
+                        ${filteredItems.map(item => getItemHtml(item)).join('')}
+                    </div>
+                `;
+
+                container.appendChild(groupEl);
+            });
+        }
+
+        function getItemHtml(item) {
+            let statusBadge = '';
+            let borderClass = '';
+            let textClass = 'text-slate-200';
+
+            if (item.status === 'enabled') {
+                statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>已启用</span>`;
+                borderClass = 'border-l-2 border-emerald-500';
+            } else if (item.status === 'disabled') {
+                statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>未启用</span>`;
+                borderClass = 'border-l-2 border-rose-500/60 opacity-60';
+                textClass = 'text-slate-400 line-through';
+            } else {
+                statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>原生/DLC</span>`;
+                borderClass = 'border-l-2 border-purple-500';
+            }
+
+            return `
+                <div class="flex items-center justify-between px-3 py-1.5 bg-slate-950/40 hover:bg-slate-800/60 rounded ${borderClass} transition">
+                    <span class="text-xs font-mono ${textClass} truncate pr-2">${item.name}</span>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        ${statusBadge}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleGroup(groupId) {
+            const content = document.getElementById(groupId);
+            const arrow = document.getElementById(`arrow-${groupId}`);
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                arrow.classList.remove('-rotate-90');
+            } else {
+                content.classList.add('hidden');
+                arrow.classList.add('-rotate-90');
+            }
+        }
+
+        let allExpanded = true;
+        document.getElementById('toggleAllBtn').addEventListener('click', () => {
+            allExpanded = !allExpanded;
+            document.querySelectorAll('.group-content').forEach(content => {
+                const groupId = content.id;
+                const arrow = document.getElementById(`arrow-${groupId}`);
+                if (allExpanded) {
+                    content.classList.remove('hidden');
+                    if (arrow) arrow.classList.remove('-rotate-90');
+                } else {
+                    content.classList.add('hidden');
+                    if (arrow) arrow.classList.add('-rotate-90');
+                }
+            });
+        });
+
+        // Search listener
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderVisualView(e.target.value.trim());
+        });
+
+        // Filter tab listener
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-tab').forEach(t => {
+                    t.classList.remove('bg-amber-500', 'text-slate-950', 'active', 'font-semibold');
+                    t.classList.add('text-slate-400', 'font-medium');
+                });
+                e.target.classList.add('bg-amber-500', 'text-slate-950', 'active', 'font-semibold');
+                e.target.classList.remove('text-slate-400');
+
+                currentFilter = e.target.getAttribute('data-filter');
+                renderVisualView(document.getElementById('searchInput').value.trim());
+            });
+        });
+
+        // View Mode switch
+        const viewCardBtn = document.getElementById('viewCardBtn');
+        const viewTextBtn = document.getElementById('viewTextBtn');
+        const visualView = document.getElementById('visualView');
+        const textView = document.getElementById('textView');
+
+        viewCardBtn.addEventListener('click', () => {
+            visualView.classList.remove('hidden');
+            textView.classList.add('hidden');
+            viewCardBtn.className = 'px-2.5 py-1 rounded bg-slate-800 text-amber-400 text-xs font-medium flex items-center gap-1';
+            viewTextBtn.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 text-xs font-medium flex items-center gap-1';
+        });
+
+        viewTextBtn.addEventListener('click', () => {
+            visualView.classList.add('hidden');
+            textView.classList.remove('hidden');
+            viewTextBtn.className = 'px-2.5 py-1 rounded bg-slate-800 text-amber-400 text-xs font-medium flex items-center gap-1';
+            viewCardBtn.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 text-xs font-medium flex items-center gap-1';
+        });
+
+        // Copy button
+        document.getElementById('copyTextBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawModList).then(() => {
+                alert('已成功复制规整换行后的 MOD 列表文本文档！');
+            });
+        });
+
+        // Initialize
+        parseList();
+        renderVisualView();
+    </script>
+</body>
+</html>
